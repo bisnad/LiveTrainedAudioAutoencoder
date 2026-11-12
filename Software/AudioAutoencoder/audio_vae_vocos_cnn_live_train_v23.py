@@ -522,6 +522,7 @@ class InferenceSettings:
     use_mean: bool = False
     latent_noise: float = 0.0
     gain: float = 1.0
+    use_mic: bool = False        # True while "Live microphone input" is the selected inference source
 
 
 train_settings = TrainSettings()
@@ -2460,6 +2461,102 @@ class Trainer:
 # Real-time inference
 # -------------------------------------------------------------------------------------------------
 
+MIC_SOURCE_LABEL = "Live microphone input"
+MIC_PREBUFFER_STEPS = 2        # output waits for this many generated steps before playing microphone audio
+MIC_MAX_LAG_STEPS = 3          # if inference falls further behind the microphone, skip ahead to the newest audio
+
+
+class MicInput:
+    """Continuous microphone capture at audio_sample_rate into a ring buffer (used by live inference only)."""
+    RING_SECONDS = 20
+
+    def __init__(self):
+        self.stream = None
+        self.lock = threading.Lock()
+        self.ring = np.zeros(self.RING_SECONDS * audio_sample_rate, dtype=np.float32)
+        self.total = 0            # absolute number of samples received since start
+        self.samplerate = audio_sample_rate
+        self.overflows = 0
+        self._carry, self._phase = None, 0.0
+
+    @property
+    def active(self):
+        return self.stream is not None
+
+    def start(self, device_id):
+        if self.stream is not None:
+            return
+        info = sd.query_devices(device_id)
+        rates = list(dict.fromkeys((audio_sample_rate, int(round(info["default_samplerate"])))))
+        last_error = None
+        for rate in rates:                      # prefer 48 kHz; otherwise capture natively and resample
+            for channels in dict.fromkeys((1, max(1, min(2, int(info["max_input_channels"]))))):
+                stream = None
+                try:
+                    with self.lock:
+                        self.total, self.overflows = 0, 0
+                        self._carry, self._phase = None, 0.0
+                    self.samplerate, self.channels = rate, channels
+                    stream = sd.InputStream(device=device_id, channels=channels, samplerate=rate,
+                                            dtype="float32", callback=self._callback)
+                    stream.start()
+                    self.stream = stream
+                    return
+                except Exception as exc:
+                    last_error = exc
+                    if stream is not None:
+                        try:
+                            stream.close()
+                        except Exception:
+                            pass
+        raise RuntimeError(f"Could not open the microphone: {last_error}")
+
+    def stop(self):
+        stream, self.stream = self.stream, None
+        if stream is not None:
+            try:
+                stream.stop()
+            finally:
+                stream.close()
+
+    def _resample(self, x):
+        """Streaming linear-interpolation resampler from self.samplerate to audio_sample_rate."""
+        ratio = self.samplerate / audio_sample_rate
+        if self._carry is not None:
+            x = np.concatenate([self._carry, x])
+        if x.shape[0] - 1 < self._phase:
+            self._carry = x
+            return x[:0]
+        count = int(np.floor((x.shape[0] - 1 - self._phase) / ratio)) + 1
+        out = np.interp(self._phase + np.arange(count) * ratio, np.arange(x.shape[0]), x)
+        nxt = self._phase + count * ratio
+        drop = int(np.floor(nxt))
+        self._carry, self._phase = x[drop:], nxt - drop
+        return out.astype(np.float32)
+
+    def _callback(self, indata, frames, time_info, status):
+        if status.input_overflow:
+            self.overflows += 1
+        mono = indata[:, 0] if indata.shape[1] == 1 else indata.mean(axis=1)
+        if self.samplerate != audio_sample_rate:
+            mono = self._resample(mono.astype(np.float32))
+        n = mono.shape[0]
+        if n == 0:
+            return
+        size = self.ring.shape[0]
+        with self.lock:
+            i = self.total % size
+            first = min(n, size - i)
+            self.ring[i:i + first] = mono[:first]
+            self.ring[:n - first] = mono[first:]
+            self.total += n
+
+    def read(self, start, end):
+        """Samples [start, end) in absolute numbering; the caller guarantees end <= total and a recent start."""
+        with self.lock:
+            return self.ring[np.arange(start, end) % self.ring.shape[0]].copy()
+
+
 class InferenceEngine:
     """Rolling-mel-buffer inference: encode 8-frame blocks, decode causally, Vocos on the whole buffer."""
     def __init__(self, trainer):
@@ -2471,6 +2568,12 @@ class InferenceEngine:
         self.stream = None
         self.device_id = default_audio_output_device
         self.state_lock = threading.Lock()
+        self.mic = MicInput()
+        self.mic_enabled = False         # set by the GUI when at least one audio input device exists
+        self.mic_device_fn = None        # returns the sounddevice index of the chosen input device
+        self.mic_pos = None
+        self.mic_skips = 0
+        self.mic_error = ""
         self.mel_buffer = None
         self.z_hist = None
         self.prev_tail = None        # tail of the previous Vocos run, crossfaded into the next one
@@ -2486,6 +2589,7 @@ class InferenceEngine:
     def reset_state(self):
         with self.state_lock:
             self.pos = 0
+            self.mic_pos = None
             while not self.q.empty():
                 try:
                     self.q.get_nowait()
@@ -2502,27 +2606,81 @@ class InferenceEngine:
                         m.streaming = decoder_streaming
                         m.cache = None
 
+    def mic_selected(self):
+        return bool(self.mic_enabled and inf_settings.use_mic)
+
+    def sync_mic(self):
+        """Open the microphone only while audio output is running AND the microphone is the chosen source."""
+        want = self.stream is not None and self.mic_selected()
+        if want and not self.mic.active:
+            try:
+                device_id = self.mic_device_fn() if self.mic_device_fn is not None else None
+                if device_id is None:
+                    raise RuntimeError("no audio input device selected")
+                self.mic.start(device_id)
+                self.mic_error = ""
+                lg = self.trainer.experiment_logger
+                if lg is not None:
+                    lg.event("playback.microphone_opened", "audio", {
+                        "device_id": int(device_id), "capture_samplerate": int(self.mic.samplerate)})
+            except Exception as exc:
+                self.mic_error = str(exc)
+                print("Microphone error:", exc)
+                lg = self.trainer.experiment_logger
+                if lg is not None:
+                    lg.event("playback.error", "audio", {"message": "microphone: " + str(exc)[:900]})
+        elif not want and self.mic.active:
+            self.mic.stop()
+        self.mic_pos = None
+
+    def _mic_slices(self, k):
+        """Encoder input slices cut from the newest microphone audio, same geometry as for a file."""
+        if not self.mic.active:
+            return None
+        span = (k - 1) * block_samples + slice_samples
+        ctx = stft_context_frames * audio_hop
+        total = self.mic.total
+        if self.mic_pos is None:
+            self.mic_pos = total + ctx                       # start with the audio that arrives from now on
+        begin = self.mic_pos - ctx
+        if total - (begin + span) > MIC_MAX_LAG_STEPS * inference_step_samples:
+            begin = total - span                             # inference fell behind: jump to the newest audio
+            self.mic_pos = begin + ctx
+            self.mic_skips += 1
+        if total < begin + span:
+            return None
+        chunk = torch.from_numpy(self.mic.read(begin, begin + span)).to(device)
+        self.mic_pos += inference_step_samples
+        starts = torch.arange(k, device=device) * block_samples
+        ix = starts[:, None] + torch.arange(slice_samples, device=device)[None, :]
+        return chunk[ix]
+
     @torch.no_grad()
     def _generate_step(self):
         """Generates one contiguous audio segment of inference_step_samples samples."""
         s = inf_settings
         k = inference_blocks_per_step
-        idx = min(max(0, s.file_index), len(store.src_waves) - 1)
-        wave = store.src_waves[idx]
-        n = wave.shape[0]
-        st = (int(s.start_sec * audio_sample_rate) // audio_hop) * audio_hop
-        en = min(int(s.end_sec * audio_sample_rate), n)
-        st = min(st, max(0, en - 1))
-        need = k * block_samples + stft_context_frames * audio_hop
-        if self.pos < st or self.pos + need > en:
-            self.pos = st
+        if self.mic_selected():
+            x = self._mic_slices(k)
+            if x is None:
+                return None                      # not enough microphone audio captured yet
+        else:
+            idx = min(max(0, s.file_index), len(store.src_waves) - 1)
+            wave = store.src_waves[idx]
+            n = wave.shape[0]
+            st = (int(s.start_sec * audio_sample_rate) // audio_hop) * audio_hop
+            en = min(int(s.end_sec * audio_sample_rate), n)
+            st = min(st, max(0, en - 1))
+            need = k * block_samples + stft_context_frames * audio_hop
+            if self.pos < st or self.pos + need > en:
+                self.pos = st
 
-        # slice b starts one STFT context before block b; zero outside the file
-        starts = self.pos - stft_context_frames * audio_hop + torch.arange(k, device=device) * block_samples
-        ix = starts[:, None] + torch.arange(slice_samples, device=device)[None, :]
-        valid = (ix >= 0) & (ix < n)
-        x = wave[ix.clamp(0, n - 1)] * valid
-        self.pos += inference_step_samples
+            # slice b starts one STFT context before block b; zero outside the file
+            starts = self.pos - stft_context_frames * audio_hop + torch.arange(k, device=device) * block_samples
+            ix = starts[:, None] + torch.arange(slice_samples, device=device)[None, :]
+            valid = (ix >= 0) & (ix < n)
+            x = wave[ix.clamp(0, n - 1)] * valid
+            self.pos += inference_step_samples
 
         # only the central audio_mel_count_vae frames of each slice reach the encoder
         mels = get_mels(x)[..., stft_context_frames:stft_context_frames + audio_mel_count_vae]    # (k, F, 8)
@@ -2564,13 +2722,16 @@ class InferenceEngine:
     def producer(self):
         n_done, t_sum = 0, 0.0
         while self.running:
-            if self.q.qsize() >= max_queued_blocks or len(store.src_waves) == 0:
+            if self.q.qsize() >= max_queued_blocks or (len(store.src_waves) == 0 and not self.mic_selected()):
                 time.sleep(0.005)
                 continue
             try:
                 t0 = time.time()
                 with self.state_lock:
                     seg = self._generate_step()
+                if seg is None:                          # microphone: wait for more input audio
+                    time.sleep(0.003)
+                    continue
                 self.q.put(seg)
                 t_sum += time.time() - t0
                 n_done += 1
@@ -2583,6 +2744,10 @@ class InferenceEngine:
     def callback(self, outdata, frames, time_info, status):
         if status.output_underflow:
             self.device_underflows += 1
+        if (self.starved and self.leftover.shape[0] == 0 and self.mic_selected()
+                and self.q.qsize() < MIC_PREBUFFER_STEPS):
+            outdata[:, 0] = 0.0                          # microphone: build a small safety buffer first
+            return
         n = 0
         while n < frames:
             if self.leftover.shape[0] == 0:
@@ -2625,6 +2790,7 @@ class InferenceEngine:
                                           dtype='float32', blocksize=1024, latency=0.15,
                                           callback=self.callback)
             self.stream.start()
+            self.sync_mic()
             self._playback_start_time = time.monotonic()
             self._playback_start_underruns = self.underruns
             self._playback_start_underflows = self.device_underflows
@@ -2633,7 +2799,8 @@ class InferenceEngine:
                 index = int(inf_settings.file_index)
                 lg.event("playback.started", "audio", {
                     "source_index": index,
-                    "source_name": store.src_names[index] if 0 <= index < len(store.src_names) else None,
+                    "source_name": (MIC_SOURCE_LABEL if inf_settings.use_mic else
+                                    store.src_names[index] if 0 <= index < len(store.src_names) else None),
                     "range_seconds": [float(inf_settings.start_sec), float(inf_settings.end_sec)],
                     "mean_latent": bool(inf_settings.use_mean),
                     "noise": float(inf_settings.latent_noise),
@@ -2652,12 +2819,14 @@ class InferenceEngine:
             self.stream.stop()
             self.stream.close()
             self.stream = None
+            self.sync_mic()                      # releases the microphone
             lg = self.trainer.experiment_logger
             if lg is not None:
                 index = int(inf_settings.file_index)
                 lg.event("playback.stopped", "audio", {
                     "source_index": index,
-                    "source_name": store.src_names[index] if 0 <= index < len(store.src_names) else None,
+                    "source_name": (MIC_SOURCE_LABEL if inf_settings.use_mic else
+                                    store.src_names[index] if 0 <= index < len(store.src_names) else None),
                     "duration_s": round(time.monotonic() - self._playback_start_time, 3)
                                   if self._playback_start_time is not None else None,
                     "underruns_delta": int(self.underruns - self._playback_start_underruns),
@@ -3428,6 +3597,8 @@ class LiveGUI(QtWidgets.QWidget):
         self._replay_training_paused = False
         self._replay_warnings = []
         self.mic = MicRecorder()
+        self.engine.mic_enabled = bool(list_input_devices())     # offer the microphone as inference source
+        self.engine.mic_device_fn = self.selected_mic_device_id
         self.mic_devices = []
         self._mic_message = ""
         self.setWindowTitle("Live Audio VAE v20: train, listen, and replay sessions")
@@ -3826,7 +3997,8 @@ class LiveGUI(QtWidgets.QWidget):
                 if self.engine.stream is not None:
                     self.experiment_logger.event("playback.already_running", "audio", {
                         "source_index": int(inf_settings.file_index),
-                        "source_name": store.src_names[inf_settings.file_index]
+                        "source_name": MIC_SOURCE_LABEL if inf_settings.use_mic else
+                                       store.src_names[inf_settings.file_index]
                                        if 0 <= inf_settings.file_index < len(store.src_names) else None})
                 self.experiment_logger.metric(self.trainer.logging_metrics(), force=True)
                 self.logging_status.setToolTip(folder)
@@ -4220,13 +4392,13 @@ class LiveGUI(QtWidgets.QWidget):
                 self._replay_warnings.append("Old config.loaded lacks dataset or effective state; skipped")
         elif typ == "playback.source_changed":
             name = data.get("source_name")
-            if name in store.src_names:
-                self.inf_file.setCurrentIndex(store.src_names.index(name))
+            if name in self.inference_source_names():
+                self.inf_file.setCurrentIndex(self.inference_source_names().index(name))
         elif typ == "playback.started":
             self._replay_playback_wanted = True
             name = data.get("source_name")
-            if name in store.src_names:
-                self.inf_file.setCurrentIndex(store.src_names.index(name))
+            if name in self.inference_source_names():
+                self.inf_file.setCurrentIndex(self.inference_source_names().index(name))
             if "range_seconds" in data and isinstance(data["range_seconds"], list):
                 self.inf_start.setValue(data["range_seconds"][0])
                 self.inf_end.setValue(data["range_seconds"][1])
@@ -4608,12 +4780,24 @@ class LiveGUI(QtWidgets.QWidget):
         root.addStretch(1)
         return tab
 
+    def selected_mic_device_id(self):
+        """Sounddevice index chosen in the Data selection tab's 'Audio input device' pulldown."""
+        row = self.mic_device_combo.currentIndex() if hasattr(self, "mic_device_combo") else -1
+        return self.mic_devices[row][0] if 0 <= row < len(self.mic_devices) else None
+
+    def inference_source_names(self):
+        """Pulldown entries: the live microphone first (if an input device exists), then the whole source files."""
+        names = list(store.src_names)
+        return ([MIC_SOURCE_LABEL] + names) if self.engine.mic_enabled else names
+
     def refresh_files(self, selected_index=None, inference_index=None):
         selected = self.file_list.currentRow() if selected_index is None else selected_index
         idx = inf_settings.file_index if inference_index is None else inference_index
         with store.lock:
             entries = list(zip(store.names, store.enabled))
-            sources = list(store.src_names)
+            file_count = len(store.src_names)
+        sources = self.inference_source_names()
+        offset = 1 if self.engine.mic_enabled else 0        # the microphone entry occupies pulldown row 0
         row = max(0, min(selected, len(entries) - 1)) if entries else None
         self._suppress_file_selection_log = True
         try:
@@ -4627,16 +4811,20 @@ class LiveGUI(QtWidgets.QWidget):
         # The inference list holds the WHOLE source files and only changes when files are added.
         if sources != self._src_snapshot:
             old, self._src_snapshot = self._src_snapshot, sources
-            idx = max(0, min(idx, len(sources) - 1)) if sources else 0
+            if inf_settings.use_mic and offset:
+                combo_idx = 0                                   # keep the microphone selected
+            elif file_count:
+                combo_idx = max(0, min(idx, file_count - 1)) + offset
+            else:
+                combo_idx = -1                                  # nothing selected: never opens the microphone unasked
             self.inf_file.blockSignals(True)
             self.inf_file.clear()
             self.inf_file.addItems(sources)
-            if sources:
-                self.inf_file.setCurrentIndex(idx)
+            self.inf_file.setCurrentIndex(combo_idx)
             self.inf_file.blockSignals(False)
             self._sync_mirror(self.elements["inference.file"])
-            if sources and (not old or old[:idx + 1] != sources[:idx + 1]):
-                self.on_inf_file(idx)
+            if combo_idx >= 0 and (not old or old[:combo_idx + 1] != sources[:combo_idx + 1]):
+                self.on_inf_file(combo_idx)
 
     def add_files(self):
         paths, _ = QtWidgets.QFileDialog.getOpenFileNames(
@@ -4650,7 +4838,7 @@ class LiveGUI(QtWidgets.QWidget):
         if not names:
             QtWidgets.QMessageBox.information(self, "Remove audio files", "There are no audio files to remove.")
             return
-        live = int(inf_settings.file_index) if self.engine.stream is not None else None
+        live = int(inf_settings.file_index) if self.engine.stream is not None and not inf_settings.use_mic else None
         items = [(n, bool(e), live is not None and r[0] == live) for n, e, r in zip(names, enabled, refs)]
         dialog = RemoveAudioDialog(self, items, self.file_list.currentRow())
         if dialog.exec_() == QtWidgets.QDialog.Accepted:
@@ -4670,7 +4858,7 @@ class LiveGUI(QtWidgets.QWidget):
         with store.lock:
             freed_names = [store.src_names[i] for i in freed]
         stopped_playback = False
-        if inf_idx in freed and self.engine.stream is not None:
+        if inf_idx in freed and self.engine.stream is not None and not inf_settings.use_mic:
             self.engine.stop()            # the playing source file is about to be unloaded
             stopped_playback = True
         with self.engine.state_lock:      # the inference producer never sees half-updated lists
@@ -4683,7 +4871,7 @@ class LiveGUI(QtWidgets.QWidget):
         if n_sources == 0:
             inf_settings.file_index = 0
         self.refresh_files(inference_index=new_idx)
-        if n_sources == 0 or inf_idx in removed_sources:
+        if not inf_settings.use_mic and (n_sources == 0 or inf_idx in removed_sources):
             self.engine.reset_state()
         if log and count:
             self.experiment_logger.event("data.entries_removed", "user", {
@@ -4946,10 +5134,10 @@ class LiveGUI(QtWidgets.QWidget):
         self.engine.device_id = self.dev_map[self.dev_combo.currentIndex()] if self.dev_map else None
 
         self.inf_file = self.add_element(
-            il, "inference", "inference.file", "Source file (whole file)",
+            il, "inference", "inference.file", "Source (live microphone or whole file)",
             lambda: QtWidgets.QComboBox(),
             on_change=lambda *_: self.on_inf_file(self.inf_file.currentIndex()),
-            items_fn=lambda: list(store.src_names))
+            items_fn=lambda: self.inference_source_names())
         self.inf_start = self.add_element(
             il, "inference", "inference.start", "Source start (s)",
             lambda: dspin(0, 0, 1e5, 1.0, visible_max=60), on_change=self.apply_inf_settings)
@@ -4979,11 +5167,31 @@ class LiveGUI(QtWidgets.QWidget):
         if 0 <= i < len(self.dev_map):
             self.engine.set_device(self.dev_map[i])
 
-    def on_inf_file(self, idx):
-        if idx < 0 or idx >= len(store.src_waves):
+    def on_inf_file(self, combo_idx):
+        """combo_idx is the pulldown row; with a microphone present, row 0 is the microphone and files start at row 1."""
+        offset = 1 if self.engine.mic_enabled else 0
+        is_mic = bool(offset) and combo_idx == 0 and self.inf_file.currentText() == MIC_SOURCE_LABEL
+        idx = combo_idx - offset                                 # index into store.src_waves
+        if combo_idx < 0 or (not is_mic and (idx < 0 or idx >= len(store.src_waves))):
             return
         previous_index = int(inf_settings.file_index)
-        if self._ready and not self._loading and idx != previous_index:
+        previous_mic = bool(inf_settings.use_mic)
+        if is_mic:
+            # Live microphone: encoded and decoded by the inference copies only; nothing reaches the training set.
+            if self._ready and not self._loading and not previous_mic:
+                self._flush_all_changes()
+                self._capture_control_change(self.elements["inference.file"], immediate=True)
+            self.apply_inf_settings()
+            self.engine.reset_state()
+            self.engine.sync_mic()
+            if self._ready and not self._loading and not previous_mic:
+                self.experiment_logger.event("playback.source_changed", "audio", {
+                    "source_index": int(combo_idx), "source_name": MIC_SOURCE_LABEL,
+                    "inference_decoder_state_reset": True,
+                    "playback_running": self.engine.stream is not None},
+                    cause_seq=self.experiment_logger.last_change("inference.file"))
+            return
+        if self._ready and not self._loading and (idx != previous_index or previous_mic):
             self._flush_all_changes()
             self._capture_control_change(self.elements["inference.file"], immediate=True)
         dur = store.src_waves[idx].shape[0] / audio_sample_rate      # whole source file, never split
@@ -4998,7 +5206,8 @@ class LiveGUI(QtWidgets.QWidget):
         inf_settings.file_index = idx
         self.apply_inf_settings()
         self.engine.reset_state()
-        if self._ready and not self._loading and previous_index != idx:
+        self.engine.sync_mic()                                   # leaving the microphone releases the device
+        if self._ready and not self._loading and (previous_index != idx or previous_mic):
             self.experiment_logger.event("playback.source_changed", "audio", {
                 "source_index": int(idx), "source_name": store.src_names[idx],
                 "range_reset_to_s": [0.0, float(dur)],
@@ -5010,7 +5219,9 @@ class LiveGUI(QtWidgets.QWidget):
         if not self._ready:
             return
         s = inf_settings
-        s.file_index = max(0, self.inf_file.currentIndex())
+        s.use_mic = bool(self.engine.mic_enabled and self.inf_file.currentText() == MIC_SOURCE_LABEL)
+        if not s.use_mic:                                        # while the microphone is selected, keep the last file index
+            s.file_index = max(0, self.inf_file.currentIndex() - (1 if self.engine.mic_enabled else 0))
         s.start_sec = self.inf_start.value()
         s.end_sec = self.inf_end.value()
         s.use_mean = self.inf_mean.isChecked()
