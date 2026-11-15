@@ -16,7 +16,7 @@ Cutting a long recording into segments lets you tick only the parts you want the
 
 ## Selected entry: start
 
-Start time (seconds) of the selected entry in the Split dialog fields. Together with 'end' it defines the chunk width used by the Split button.
+Start time (seconds) of the selected entry. Together with 'end' it defines the chunk width used by the Split button.
 
 These two fields do not cut or trim the entry. Only the width (end minus start) is used when you press 'Split selected into _1, _2, ...'; the whole entry is then divided into chunks of that width.
 
@@ -28,9 +28,9 @@ See 'Selected entry: start'.
 
 ## Audio input device
 
-The microphone or other audio input used for recording new material into the dataset.
+The microphone or other audio input used for recording new material into the dataset and for the live microphone input in the Live inference tab.
 
-The list of devices is read once when the program starts, so connect a USB microphone before launching. The device is locked while a recording is running.
+The list of devices is read once when the program starts, so connect a USB microphone before launching. The device is locked while a recording is running; a change during live microphone playback takes effect after you stop and start audio.
 
 ## Microphone recording
 
