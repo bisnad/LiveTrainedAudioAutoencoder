@@ -18,15 +18,15 @@
       "value": 0.0,
       "range": [
         0.0,
-        10.324916666666667
+        10.891416666666666
       ]
     },
     "data.range_end": {
       "common": false,
-      "value": 10.32,
+      "value": 10.89,
       "range": [
         0.0,
-        10.324916666666667
+        10.891416666666666
       ]
     },
     "data.mic_device_panel": {
@@ -37,26 +37,26 @@
     },
     "inference.device": {
       "common": false,
-      "value": "9: Headset (2- EarPods)"
+      "value": "12: Speakers (RME Fireface UCX)"
     },
     "inference.file": {
-      "common": true,
-      "value": "SSB00050001.wav"
+      "common": false,
+      "value": "Foley_FSD50K_Alarm_005.wav"
     },
     "inference.start": {
       "common": false,
       "value": 0.0,
       "range": [
         0.0,
-        9.444333333333333
+        10.891416666666666
       ]
     },
     "inference.end": {
       "common": false,
-      "value": 9.444,
+      "value": 10.891,
       "range": [
         0.0,
-        9.444333333333333
+        10.891416666666666
       ]
     },
     "inference.use_mean": {
@@ -81,6 +81,46 @@
     },
     "inference.audio_buttons": {
       "common": true
+    },
+    "inference.mic_prebuffer": {
+      "common": false,
+      "value": 1,
+      "range": [
+        0.0,
+        8.0
+      ]
+    },
+    "inference.mic_max_lag": {
+      "common": false,
+      "value": 2,
+      "range": [
+        1.0,
+        8.0
+      ]
+    },
+    "inference.lookahead": {
+      "common": false,
+      "value": 28,
+      "range": [
+        8.0,
+        64.0
+      ]
+    },
+    "inference.out_latency": {
+      "common": false,
+      "value": 50.0,
+      "range": [
+        5.0,
+        300.0
+      ]
+    },
+    "inference.mic_input_block": {
+      "common": false,
+      "value": 256,
+      "range": [
+        0.0,
+        1024.0
+      ]
     },
     "training.rec_loss_scale": {
       "common": true,
@@ -682,7 +722,7 @@
       "value": "L1"
     },
     "losses.chroma.weight": {
-      "common": true,
+      "common": false,
       "value": 0.0,
       "range": [
         0.0,
@@ -714,7 +754,7 @@
       "value": "L1"
     },
     "losses.tonnetz.weight": {
-      "common": true,
+      "common": false,
       "value": 0.0,
       "range": [
         0.0,
@@ -746,7 +786,7 @@
       "value": "L1"
     },
     "losses.poly.weight": {
-      "common": true,
+      "common": false,
       "value": 0.0,
       "range": [
         0.0,
@@ -783,7 +823,7 @@
     },
     "log.window_steps": {
       "common": false,
-      "value": 2000,
+      "value": 200,
       "range": [
         10.0,
         100000.0
@@ -811,70 +851,94 @@
     "path_format": "posix_relative",
     "relative_to": "experiment_root",
     "sources": [
-      "../../Data/audio/SSB00050001.wav",
-      "../../Data/audio/003_AcousticGuitar.wav",
-      "../../Data/audio/005_Alarm.wav",
-      "../../Data/audio/007_Applause.wav",
-      "../../Data/audio/012_Bell.wav",
-      "../../Data/audio/016_BirdCall.wav",
-      "../../Data/audio/018_Boiling.wav",
-      "../../Data/audio/107_Laughter.wav"
+      "../../Data/audio/Foley_FSD50K_Alarm_005.wav",
+      "../../Data/audio/Foley_FSD50K_BirdCall_016.wav",
+      "../../Data/audio/Foley_FSD50K_Boiling_18.wav",
+      "../../Data/audio/Foley_FSD50K_Laughter_107.wav",
+      "../../Data/audio/Foley_FSDK50K_Crushing_382701.wav",
+      "../../Data/audio/instrument_goodsounds_trumpet_scale_jesus_recordings_0179.wav",
+      "../../Data/audio/instrument_goodsounds_violin_scales_laia_recordings_0000.wav",
+      "../../Data/audio/voice_chinese_AIShell3_SSB00050001.wav",
+      "../../Data/audio/voice_chinese_AIShell3_SSB00730314.wav",
+      "../../Data/audio/voice_english_EARS_p001_freeform_speech_01_excerpt.wav",
+      "../../Data/audio/voice_english_EARS_p003_freeform_speech_02_excerpt.wav"
     ],
     "entries": [
       {
-        "name": "SSB00050001.wav",
+        "name": "Foley_FSD50K_Alarm_005.wav",
         "source": 0,
-        "offset": 0,
-        "length": 453328,
-        "enabled": true
-      },
-      {
-        "name": "003_AcousticGuitar.wav",
-        "source": 1,
-        "offset": 0,
-        "length": 495596,
-        "enabled": false
-      },
-      {
-        "name": "005_Alarm.wav",
-        "source": 2,
         "offset": 0,
         "length": 522788,
         "enabled": false
       },
       {
-        "name": "007_Applause.wav",
-        "source": 3,
-        "offset": 0,
-        "length": 485790,
-        "enabled": false
-      },
-      {
-        "name": "012_Bell.wav",
-        "source": 4,
-        "offset": 0,
-        "length": 481405,
-        "enabled": false
-      },
-      {
-        "name": "016_BirdCall.wav",
-        "source": 5,
+        "name": "Foley_FSD50K_BirdCall_016.wav",
+        "source": 1,
         "offset": 0,
         "length": 492343,
         "enabled": false
       },
       {
-        "name": "018_Boiling.wav",
-        "source": 6,
+        "name": "Foley_FSD50K_Boiling_18.wav",
+        "source": 2,
         "offset": 0,
         "length": 547061,
         "enabled": false
       },
       {
-        "name": "107_Laughter.wav",
-        "source": 7,
+        "name": "Foley_FSD50K_Laughter_107.wav",
+        "source": 3,
         "offset": 0,
         "length": 503908,
+        "enabled": false
+      },
+      {
+        "name": "Foley_FSDK50K_Crushing_382701.wav",
+        "source": 4,
+        "offset": 0,
+        "length": 570584,
+        "enabled": false
+      },
+      {
+        "name": "instrument_goodsounds_trumpet_scale_jesus_recordings_0179.wav",
+        "source": 5,
+        "offset": 0,
+        "length": 1032021,
+        "enabled": false
+      },
+      {
+        "name": "instrument_goodsounds_violin_scales_laia_recordings_0000.wav",
+        "source": 6,
+        "offset": 0,
+        "length": 1056537,
+        "enabled": false
+      },
+      {
+        "name": "voice_chinese_AIShell3_SSB00050001.wav",
+        "source": 7,
+        "offset": 0,
+        "length": 453328,
+        "enabled": false
+      },
+      {
+        "name": "voice_chinese_AIShell3_SSB00730314.wav",
+        "source": 8,
+        "offset": 0,
+        "length": 348960,
+        "enabled": false
+      },
+      {
+        "name": "voice_english_EARS_p001_freeform_speech_01_excerpt.wav",
+        "source": 9,
+        "offset": 0,
+        "length": 1251445,
+        "enabled": false
+      },
+      {
+        "name": "voice_english_EARS_p003_freeform_speech_02_excerpt.wav",
+        "source": 10,
+        "offset": 0,
+        "length": 1121996,
         "enabled": false
       }
     ]

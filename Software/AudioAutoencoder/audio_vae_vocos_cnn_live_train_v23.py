@@ -522,7 +522,12 @@ class InferenceSettings:
     use_mean: bool = False
     latent_noise: float = 0.0
     gain: float = 1.0
-    use_mic: bool = False        # True while "Live microphone input" is the selected inference source
+    use_mic: bool = False            # True while "Live microphone input" is the selected inference source
+    mic_prebuffer_steps: int = 2     # generated steps collected before microphone audio starts playing (0 = none)
+    mic_max_lag_steps: int = 3       # microphone backlog (in steps) after which inference skips ahead
+    lookahead_frames: int = inference_lookahead_frames    # right-edge frames held back for Vocos (live adjustable)
+    out_latency_ms: float = 150.0    # requested latency of the audio output stream
+    mic_input_block: int = 0         # microphone block size in samples (0 = driver default, low-latency mode)
 
 
 train_settings = TrainSettings()
@@ -2462,8 +2467,6 @@ class Trainer:
 # -------------------------------------------------------------------------------------------------
 
 MIC_SOURCE_LABEL = "Live microphone input"
-MIC_PREBUFFER_STEPS = 2        # output waits for this many generated steps before playing microphone audio
-MIC_MAX_LAG_STEPS = 3          # if inference falls further behind the microphone, skip ahead to the newest audio
 
 
 class MicInput:
@@ -2483,7 +2486,7 @@ class MicInput:
     def active(self):
         return self.stream is not None
 
-    def start(self, device_id):
+    def start(self, device_id, blocksize=0):
         if self.stream is not None:
             return
         info = sd.query_devices(device_id)
@@ -2498,7 +2501,8 @@ class MicInput:
                         self._carry, self._phase = None, 0.0
                     self.samplerate, self.channels = rate, channels
                     stream = sd.InputStream(device=device_id, channels=channels, samplerate=rate,
-                                            dtype="float32", callback=self._callback)
+                                            dtype="float32", callback=self._callback,
+                                            blocksize=int(blocksize), latency="low")
                     stream.start()
                     self.stream = stream
                     return
@@ -2617,12 +2621,13 @@ class InferenceEngine:
                 device_id = self.mic_device_fn() if self.mic_device_fn is not None else None
                 if device_id is None:
                     raise RuntimeError("no audio input device selected")
-                self.mic.start(device_id)
+                self.mic.start(device_id, inf_settings.mic_input_block)
                 self.mic_error = ""
                 lg = self.trainer.experiment_logger
                 if lg is not None:
                     lg.event("playback.microphone_opened", "audio", {
-                        "device_id": int(device_id), "capture_samplerate": int(self.mic.samplerate)})
+                        "device_id": int(device_id), "capture_samplerate": int(self.mic.samplerate),
+                        "input_block": int(inf_settings.mic_input_block)})
             except Exception as exc:
                 self.mic_error = str(exc)
                 print("Microphone error:", exc)
@@ -2643,7 +2648,7 @@ class InferenceEngine:
         if self.mic_pos is None:
             self.mic_pos = total + ctx                       # start with the audio that arrives from now on
         begin = self.mic_pos - ctx
-        if total - (begin + span) > MIC_MAX_LAG_STEPS * inference_step_samples:
+        if total - (begin + span) > max(1, int(inf_settings.mic_max_lag_steps)) * inference_step_samples:
             begin = total - span                             # inference fell behind: jump to the newest audio
             self.mic_pos = begin + ctx
             self.mic_skips += 1
@@ -2700,7 +2705,7 @@ class InferenceEngine:
         wav = vocos.decode(self.mel_buffer).reshape(-1)                                            # (buffer_frames-1)*hop samples
 
         # frame f is centred at sample f*hop: play the newest step that lies lookahead_frames before the right edge
-        seg_end = (inference_buffer_frames - inference_lookahead_frames) * audio_hop
+        seg_end = (inference_buffer_frames - int(s.lookahead_frames)) * audio_hop
         ov = inference_crossfade_samples
         half = ov // 2
         # Every step is a fresh Vocos run on the whole buffer. Run t supplies [a - half, a + step + half); the first
@@ -2730,7 +2735,7 @@ class InferenceEngine:
                 with self.state_lock:
                     seg = self._generate_step()
                 if seg is None:                          # microphone: wait for more input audio
-                    time.sleep(0.003)
+                    time.sleep(0.002)
                     continue
                 self.q.put(seg)
                 t_sum += time.time() - t0
@@ -2744,8 +2749,9 @@ class InferenceEngine:
     def callback(self, outdata, frames, time_info, status):
         if status.output_underflow:
             self.device_underflows += 1
-        if (self.starved and self.leftover.shape[0] == 0 and self.mic_selected()
-                and self.q.qsize() < MIC_PREBUFFER_STEPS):
+        prebuffer = int(inf_settings.mic_prebuffer_steps)
+        if (prebuffer > 0 and self.starved and self.leftover.shape[0] == 0 and self.mic_selected()
+                and self.q.qsize() < prebuffer):
             outdata[:, 0] = 0.0                          # microphone: build a small safety buffer first
             return
         n = 0
@@ -2787,7 +2793,7 @@ class InferenceEngine:
                     break
             self.leftover = np.zeros(0, dtype=np.float32)
             self.stream = sd.OutputStream(samplerate=audio_sample_rate, device=self.device_id, channels=1,
-                                          dtype='float32', blocksize=1024, latency=0.15,
+                                          dtype='float32', blocksize=1024, latency=max(0.005, inf_settings.out_latency_ms / 1000.0),
                                           callback=self.callback)
             self.stream.start()
             self.sync_mic()
@@ -3599,6 +3605,7 @@ class LiveGUI(QtWidgets.QWidget):
         self.mic = MicRecorder()
         self.engine.mic_enabled = bool(list_input_devices())     # offer the microphone as inference source
         self.engine.mic_device_fn = self.selected_mic_device_id
+        self._latency_dirty = set()
         self.mic_devices = []
         self._mic_message = ""
         self.setWindowTitle("Live Audio VAE v20: train, listen, and replay sessions")
@@ -5159,8 +5166,86 @@ class LiveGUI(QtWidgets.QWidget):
             audio_wrap, "inference", "inference.audio_buttons", "Audio output", self.make_audio_buttons)
         il.addRow(audio_wrap)
         root.addWidget(ib)
+
+        lb = QtWidgets.QGroupBox("Live microphone: delay settings")
+        lf = QtWidgets.QFormLayout(lb)
+        self._latency_timer = QtCore.QTimer(self)
+        self._latency_timer.setSingleShot(True)
+        self._latency_timer.setInterval(400)
+        self._latency_timer.timeout.connect(self._apply_latency_changes)
+        d = inf_settings
+        self.inf_mic_prebuffer = self.add_element(
+            lf, "inference", "inference.mic_prebuffer", "Safety buffer (steps; 0 = none)",
+            lambda: ispin(d.mic_prebuffer_steps, 0, 8, visible_max=8), on_change=self.on_latency_changed)
+        self.inf_mic_lag = self.add_element(
+            lf, "inference", "inference.mic_max_lag", "Max backlog before skipping ahead (steps)",
+            lambda: ispin(d.mic_max_lag_steps, 1, 8, visible_max=8), on_change=self.on_latency_changed)
+        self.inf_lookahead = self.add_element(
+            lf, "inference", "inference.lookahead", "Vocos look-ahead (frames)",
+            lambda: ispin(d.lookahead_frames, 8, 64, visible_max=64), on_change=self.on_latency_changed)
+        self.inf_out_latency = self.add_element(
+            lf, "inference", "inference.out_latency", "Output stream latency (ms)",
+            lambda: dspin(d.out_latency_ms, 5, 500, 5, 0, visible_max=300), on_change=self.on_latency_changed)
+        self.inf_in_block = self.add_element(
+            lf, "inference", "inference.mic_input_block", "Microphone block size (samples; 0 = default)",
+            lambda: ispin(d.mic_input_block, 0, 4096, visible_max=1024), on_change=self.on_latency_changed)
+        low_btn = QtWidgets.QPushButton("Low-delay preset")
+        low_btn.setToolTip("Safety buffer 1, backlog 2, look-ahead 28, output latency 50 ms, microphone block 256. "
+                           "If the sound crackles or the underrun counter rises, increase these again.")
+        low_btn.clicked.connect(self.apply_low_delay_preset)
+        lf.addRow(low_btn)
+        self.latency_label = QtWidgets.QLabel("")
+        self.latency_label.setWordWrap(True)
+        lf.addRow(self.latency_label)
+        root.addWidget(lb)
+        self.update_latency_estimate()
         root.addStretch(1)
         return tab
+
+    def apply_low_delay_preset(self):
+        for widget, value in ((self.inf_mic_prebuffer, 1), (self.inf_mic_lag, 2), (self.inf_lookahead, 28),
+                              (self.inf_out_latency, 50), (self.inf_in_block, 256)):
+            widget.setValue(value)
+
+    def update_latency_estimate(self):
+        """Rough microphone-to-speaker delay of the model path plus buffers (compute time and input device excluded)."""
+        if not hasattr(self, "latency_label"):
+            return
+        s = inf_settings
+        k = inference_blocks_per_step
+        span = (k - 1) * block_samples + slice_samples
+        context = stft_context_frames * audio_hop
+        ms = lambda n: 1000.0 * n / audio_sample_rate
+        model = ms(span - context + int(s.lookahead_frames) * audio_hop - inference_step_samples / 2)
+        buffer = ms((max(int(s.mic_prebuffer_steps), 1) - 1) * inference_step_samples)
+        self.latency_label.setText(
+            f"Estimated delay of about {model + buffer + float(s.out_latency_ms):.0f} ms plus input-device latency "
+            f"and compute time: model look-ahead and encoder context {model:.0f} ms, safety buffer {buffer:.0f} ms, "
+            f"output stream {float(s.out_latency_ms):.0f} ms. One inference step is "
+            f"{ms(inference_step_samples):.0f} ms; the console prints the measured compute time per step.")
+
+    def on_latency_changed(self, *_):
+        if not self._ready:
+            return
+        before = (inf_settings.out_latency_ms, inf_settings.mic_input_block, inf_settings.lookahead_frames)
+        self.apply_inf_settings()
+        after = (inf_settings.out_latency_ms, inf_settings.mic_input_block, inf_settings.lookahead_frames)
+        for name, a, b in zip(("output", "mic", "reset"), before, after):
+            if a != b:
+                self._latency_dirty.add(name)
+        self.update_latency_estimate()
+        if self._latency_dirty:
+            self._latency_timer.start()                 # debounce: restart streams once the slider stops moving
+
+    def _apply_latency_changes(self):
+        dirty, self._latency_dirty = self._latency_dirty, set()
+        if "output" in dirty and self.engine.stream is not None:
+            self.engine.set_device(self.engine.device_id)          # restarts output (and microphone)
+        elif "mic" in dirty and self.engine.mic.active:
+            self.engine.mic.stop()
+            self.engine.sync_mic()
+        if "reset" in dirty:
+            self.engine.reset_state()
 
     def on_device_changed(self):
         i = self.dev_combo.currentIndex()
@@ -5222,6 +5307,12 @@ class LiveGUI(QtWidgets.QWidget):
         s.use_mic = bool(self.engine.mic_enabled and self.inf_file.currentText() == MIC_SOURCE_LABEL)
         if not s.use_mic:                                        # while the microphone is selected, keep the last file index
             s.file_index = max(0, self.inf_file.currentIndex() - (1 if self.engine.mic_enabled else 0))
+        if hasattr(self, "inf_lookahead"):
+            s.mic_prebuffer_steps = int(round(self.inf_mic_prebuffer.value()))
+            s.mic_max_lag_steps = max(1, int(round(self.inf_mic_lag.value())))
+            s.lookahead_frames = int(round(self.inf_lookahead.value()))
+            s.out_latency_ms = float(self.inf_out_latency.value())
+            s.mic_input_block = int(round(self.inf_in_block.value()))
         s.start_sec = self.inf_start.value()
         s.end_sec = self.inf_end.value()
         s.use_mean = self.inf_mean.isChecked()
