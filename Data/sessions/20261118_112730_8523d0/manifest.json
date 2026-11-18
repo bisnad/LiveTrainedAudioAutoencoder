@@ -1,0 +1,11 @@
+{
+  "format": "live_audio_vae_experiment_session",
+  "version": 1,
+  "session_id": "20261118_112730_8523d0",
+  "started_local": "2026-11-18T11:27:30.162279+01:00",
+  "started_utc": "2026-11-18T10:27:30.162279+00:00",
+  "application": "audio_vae_vocos_cnn_live_train_v30.py",
+  "source_sha256": "5366b09c6635310ee6e2d8fe0e44edf1881c65fb05a253351afd26ac9350f7e6",
+  "data_policy": "No raw audio or weight tensors; audio sources identified by basename/size/mtime (notes/errors may contain user text)",
+  "replay_limit": "Model weights, optimizer/RNG state and exact sampled windows are not archived by this logger"
+}

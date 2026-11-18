@@ -29,36 +29,35 @@ DOC_TITLES = {
 # uid -> (title, short description, longer explanation for the Docs file)
 HELP = {
     # ------------------------------------------------------------------ data
-    "data.files": ("Audio files (training entries)",
-        "The list of audio entries the autoencoder can learn from. Tick an entry to include it in training; "
-        "unticked entries are ignored by training but can still be listened to. Long files can be cut into "
-        "numbered segments (_1, _2, ...) that are ticked and trained independently.",
-        "Newly added audio is never trained on until you tick it. During training, short windows are drawn at random "
-        "from the ticked entries, longer entries more often than shorter ones. Splitting a file only changes the "
-        "training list: live inference always plays the whole source file. 'Remove audio files...' deletes entries "
-        "from this list (not from disk); a source file is unloaded when none of its segments remain."),
-    "data.chunk_on_load": ("Training segments for new files",
-        "Length in seconds of the pieces a newly added file is cut into for training. 0 keeps the file whole.",
+    "data.files": ("Audio files",
+        "The list of audio files the autoencoder can be trained on. Tick a file to include it in the training set; "
+        "unticked audio files are not used for training but can still be listened to in live inference. Long files can optionally be cut into "
+        "numbered segments (_1, _2, ...) that can be ticked and trained on independently.",
+        "Newly added audio files are never used for training until you tick it. During training, short audio windows are drawn at random "
+        "from the ticked audio files, with longer audio files more selected more often than shorter ones. Splitting an audio file only changes the "
+        "training list: live inference always plays the whole source file. 'Remove audio files...' deletes audio files "
+        "from this list (not from disk); a audio file is unloaded when none of its segments remain."),
+    "data.chunk_on_load": ("Duration of segments created from new audio files",
+        "Length in seconds of the segments a newly added audio file is cut into for training. 0 keeps the file whole.",
         "Cutting a long recording into segments lets you tick only the parts you want the model to learn, for "
         "example just a particularly interesting passage. Shorter segments do not change how audio is played back."),
-    "data.range_start": ("Selected entry: start",
-        "Start time (seconds) of the selected entry. Together with 'end' it defines the chunk width used by the "
-        "Split button.",
+    "data.range_start": ("Selected audio file: start",
+        "Start time (seconds) of the selected audio file.",
         "These two fields do not cut or trim the entry. Only the width (end minus start) is used when you press "
-        "'Split selected into _1, _2, ...'; the whole entry is then divided into chunks of that width."),
-    "data.range_end": ("Selected entry: end",
-        "End time (seconds) of the selected entry. The width end minus start is the chunk length used by Split.",
+        "'Split selected into _1, _2, ...'; the whole audio file is divided into segments of that width."),
+    "data.range_end": ("Selected audio file: end",
+        "End time (seconds) of the selected audio file.",
         "See 'Selected entry: start'."),
     "data.mic_device_panel": ("Audio input device",
-        "The microphone or other audio input used for recording new material into the dataset and for the live "
-        "microphone input in the Live inference tab.",
-        "The list of devices is read once when the program starts, so connect a USB microphone before launching. "
-        "The device is locked while a recording is running; a change during live microphone playback takes effect "
+        "A microphone or other audio input device used for recording new audio material into the dataset or for providing live "
+        "audio input for inference.",
+        "The list of audio devices is read once when the program starts, so connect a microphone before launching the application. "
+        "The audio input device is locked while a recording is running; a change during live microphone playback takes effect "
         "after you stop and start audio."),
     "data.mic_record_panel": ("Microphone recording",
-        "Records from the selected input device. 'Stop and add to dataset' saves a WAV file in data/audio and adds "
-        "it to the file list (unticked, so it is not trained on until you tick it).",
-        "Recordings are limited to 10 minutes. They are stored at the device's native sample rate and resampled to "
+        "Records from the selected audio input device. The 'Stop and add to dataset' button saves the audio recording as wav file in the data/audio folder and adds "
+        "it to the audio files list.",
+        "Recordings are limited to a maximum duration of 10 minutes. They are stored at the device's native sample rate and resampled to "
         "48 kHz when loaded."),
     "session.panel": ("Experiment session logging",
         "Records what you change (parameters, files, bookmarks) and training metrics to a new folder so an "
@@ -70,54 +69,56 @@ HELP = {
         "Replay re-applies parameter changes, file ticks, splits and playback actions. It cannot restore model "
         "weights from before a reset."),
     # ------------------------------------------------------------------ inference
-    "inference.device": ("Output device",
+    "inference.device": ("Audio output device",
         "The loudspeakers or headphones used for live playback of the autoencoder output.",
         "Changing the device while audio is playing restarts the output stream."),
-    "inference.file": ("Source",
-        "The audio that is fed through the autoencoder (encoded to a compact code, then decoded back) for live "
-        "listening: a whole audio file, or 'Live microphone input' to encode your microphone in real time.",
-        "File playback always uses the whole source file, even when it is split into several training segments. "
-        "The listening model is a copy of the training model that is refreshed regularly, so what you hear follows "
+    "inference.file": ("Source Audio",
+        "The source audio that is fed through the autoencoder (encoded to a latent code, then decoded back) for live "
+        "listening: the source can be an audio file, or 'Live microphone input'.",
+        "File playback always uses the whole audio file, even when it is split into several training segments. "
+        "The inference model is a copy of the training model that is refreshed regularly, so what you hear follows "
         "training with a short delay. The microphone input only uses that listening copy and has no effect on "
-        "training. Use headphones to avoid feedback."),
-    "inference.start": ("Source start",
-        "Start (seconds) of the section of the source file that is played in a loop. Not used for the microphone.",
-        "Together with 'Source end' this selects the loop region. It has no influence on training."),
-    "inference.end": ("Source end",
-        "End (seconds) of the looped section of the source file.", "See 'Source start'."),
+        "training."),
+    "inference.start": ("Source audio start",
+        "Start (seconds) of the audio source file that is played in a loop. Not used for the microphone.",
+        "Together with 'Source audio end' this selects the loop region."),
+    "inference.end": ("Source audio end",
+        "End (seconds) of the audio source file that is played in a loop. Not used for the microphone.",
+        "Together with 'Source audio start' this selects the loop region."),
     "inference.use_mean": ("Use latent mean",
-        "The encoder describes each sound as a probability distribution (a mean and a spread). Normally a random "
-        "sample is drawn from it; with this option the mean is used instead, so the output is deterministic.",
-        "Using the mean usually sounds cleaner and more stable, while sampling shows how much variation the model "
-        "has learned. The training itself always uses sampling."),
+        "The encoder describes each latent code as a normal distribution. Normally a random "
+        "sample is drawn from it; with this option the mean of the normal distribution is used instead, so the generated audio is deterministic. "
+        "Using the mean usually causes the generated audio to sound cleaner and more stable, while sampling shows how much variation the model "
+        "has learned.",
+        "The training itself always uses sampling."),
     "inference.noise": ("Latent noise",
-        "Extra random noise added to the code before decoding. 0 = none.",
-        "Larger values make the output increasingly different from the input and eventually unstable. It is "
-        "useful as a creative control; it never affects training."),
+        "Extra random noise added to the latent code before decoding. 0 = none. "
+        "Larger values make the audio output increasingly different from the audio input and eventually unstable.",
+        "It is useful as a creative control; it never affects training."),
     "inference.gain": ("Gain",
-        "Output volume factor. 1.0 = unchanged.",
+        "Audio output volume factor. 1.0 = unchanged.",
         "A soft limiter keeps loud peaks from clipping, but very high gain will still distort."),
     "inference.audio_buttons": ("Audio output",
-        "Starts and stops the live playback.", "Stopping audio also releases the microphone if it is in use."),
-    "inference.mic_prebuffer": ("Safety buffer (microphone)",
-        "How many generated chunks are collected before microphone playback starts. More = fewer dropouts but "
+        "Starts and stops audio playback.", "Stopping audio also releases the microphone if it is in use."),
+    "inference.mic_prebuffer": ("Audio buffer queue size (microphone)",
+        "How many recorded audio buffers are collected before audio playback starts. More = fewer dropouts but "
         "more delay. 0 = none.",
-        "Each chunk is one inference step long. Lower this together with the output latency to reduce delay; if "
+        "Each audio buffer is one inference step long. Lower this together with the output latency to reduce delay; if "
         "the sound starts to crackle or the underrun counter rises, raise it again."),
-    "inference.mic_max_lag": ("Max backlog before skipping ahead",
-        "If the model falls this many steps behind the microphone, it skips ahead to the newest audio instead of "
+    "inference.mic_max_lag": ("Max audio buffer backlog",
+        "If the model falls this many steps behind the microphone input, it skips ahead to the newest audio buffer instead of "
         "letting the delay grow.",
         "Smaller values cap the delay at the price of occasional skips when the computer cannot keep up."),
-    "inference.lookahead": ("Vocos look-ahead",
+    "inference.lookahead": ("Vocos spectrogram buffer",
         "How many spectrogram frames at the end are held back before playing, because the vocoder needs some "
-        "future context to render a frame properly. More = better quality, more delay.",
+        "future context to render a audio buffer properly. More = better quality, more delay.",
         "Values below the receptive field of Vocos (roughly 27 frames) tend to cause artifacts at the edge. "
         "Each frame costs about one hop length of delay."),
-    "inference.out_latency": ("Output stream latency",
-        "The buffer size requested from the sound card, in milliseconds. Smaller = less delay, higher risk of "
+    "inference.out_latency": ("Output audio buffer size",
+        "The audio buffer size requested from the sound card, in milliseconds. Smaller = less delay, higher risk of "
         "crackling.", "Changing it restarts the output stream after a short pause."),
-    "inference.mic_input_block": ("Microphone block size",
-        "How many samples the microphone driver delivers at a time. 0 = driver default. Smaller blocks reduce "
+    "inference.mic_input_block": ("Input audio buffer size",
+        "How many audio samples the microphone driver delivers at a time. 0 = driver default. Smaller blocks reduce "
         "delay but need more CPU.", "Typical low-delay values are 128 to 512 samples."),
     # ------------------------------------------------------------------ training
     "training.rec_loss_scale": ("Rec loss scale",
@@ -396,15 +397,16 @@ def show_help(anchor_widget, uid, label=""):
     dlg.setAttribute(QtCore.Qt.WA_DeleteOnClose)
     dlg.setMinimumWidth(420)
     lay = QtWidgets.QVBoxLayout(dlg)
-    head = QtWidgets.QLabel(f"<b>{html.escape(info['title'])}</b>")
+    head = QtWidgets.QLabel(f"<b>{html.escape(info['title'], quote=False)}</b>")
     head.setStyleSheet("font-size: 14px;")
     lay.addWidget(head)
-    text = QtWidgets.QLabel(html.escape(info["short"]))
+    text = QtWidgets.QLabel(info["short"])
+    text.setTextFormat(QtCore.Qt.PlainText)
     text.setWordWrap(True)
     text.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
     lay.addWidget(text)
     if info["used_in"]:
-        used = QtWidgets.QLabel(f"<i>Used in: {html.escape(info['used_in'])}</i>")
+        used = QtWidgets.QLabel(f"<i>Used in: {html.escape(info['used_in'], quote=False)}</i>")
         used.setWordWrap(True)
         lay.addWidget(used)
     path = doc_path(info)
@@ -412,7 +414,7 @@ def show_help(anchor_widget, uid, label=""):
         link = QtWidgets.QLabel()
         link.setWordWrap(True)
         if os.path.isfile(path):
-            link.setText(f'<a href="doc">More information: {html.escape(os.path.basename(path))}</a>')
+            link.setText(f'<a href="doc">More information: {html.escape(os.path.basename(path), quote=False)}</a>')
             link.linkActivated.connect(lambda *_: open_doc(info))
         else:
             link.setText(f"<i>More information: {html.escape(path)} (file not found; run "
@@ -437,7 +439,7 @@ def make_help_button(uid, label=""):
     btn.setFixedSize(18, 18)
     btn.setFocusPolicy(QtCore.Qt.NoFocus)
     btn.setCursor(QtCore.Qt.PointingHandCursor)
-    btn.setToolTip("What does this do?")
+    btn.setToolTip("info")
     btn.setStyleSheet("QToolButton { border: 1px solid #4a7fc1; border-radius: 9px; color: #4a7fc1; "
                       "font-weight: bold; padding: 0px; } QToolButton:hover { background: #4a7fc1; color: white; }")
     btn.clicked.connect(lambda *_: show_help(btn, uid, label))

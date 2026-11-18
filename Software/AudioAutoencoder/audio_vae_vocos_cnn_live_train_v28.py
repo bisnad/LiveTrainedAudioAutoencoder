@@ -3623,7 +3623,7 @@ class LiveGUI(QtWidgets.QWidget):
         self._latency_dirty = set()
         self.mic_devices = []
         self._mic_message = ""
-        self.setWindowTitle("Live Audio VAE v20: train, listen, and replay sessions")
+        self.setWindowTitle("Live Trained Audio VAE")
         self.resize(1180, 900)
         self.build_ui()
         self._reset_control_shadows()
@@ -3699,7 +3699,7 @@ class LiveGUI(QtWidgets.QWidget):
         self.elements[uid] = elem
         row = QtWidgets.QHBoxLayout()
         row.addWidget(self._make_toggle(elem))
-        row.addWidget(QtWidgets.QLabel("Show this panel in the Common tab"))
+        #row.addWidget(QtWidgets.QLabel("Show this panel in the Common tab"))
         _add_help(row, uid, label)
         row.addStretch(1)
         layout.insertLayout(0, row)
@@ -4778,30 +4778,29 @@ class LiveGUI(QtWidgets.QWidget):
 
     def build_data_tab(self):
         tab, root = self._scroll_tab()
-        box = QtWidgets.QGroupBox("Training data: files and independent segments")
+        box = QtWidgets.QGroupBox("Training set: audio files and segments")
         dl = QtWidgets.QVBoxLayout(box)
         hint = QtWidgets.QLabel(
-            "Newly added audio is NOT part of the training set: tick an entry to include it. "
-            "Splitting into segments only affects the training dataset; live inference always plays "
-            "the whole source file.")
+            "Newly added audio files are not automatically part of the training set: tick an audio file to include it. "
+            "Splitting audio files into segments only affects the training set; live inference always plays the audio files in full.")
         hint.setWordWrap(True)
         dl.addWidget(hint)
         self.file_panel = self.add_widget_element(
-            dl, "data", "data.files", "Audio files (training entries)",
+            dl, "data", "data.files", "Audio files",
             self.make_file_panel, update_fn=self.fill_panel)
         self.file_list = self.file_panel.list
 
         form = QtWidgets.QFormLayout()
         self.chunk_on_load = self.add_element(
-            form, "data", "data.chunk_on_load", "Training segments for new files (s; 0 = whole)",
+            form, "data", "data.chunk_on_load", "Duration of segments created from new audio files",
             lambda: dspin(default_audio_chunk_seconds, 0, 100000, 1.0, 2, visible_max=60.0))
         self.chunk_on_load.setToolTip("0 keeps each new file whole in the dataset; >0 creates independent "
                                       "_1, _2, ... training entries (playback is never split)")
         self.range_start = self.add_element(
-            form, "data", "data.range_start", "Selected entry: start (s)",
+            form, "data", "data.range_start", "Selected audio file: start (s)",
             lambda: dspin(0, 0, 1e5, 1.0, 2, visible_max=60), on_change=self.on_range_changed)
         self.range_end = self.add_element(
-            form, "data", "data.range_end", "Selected entry: end (s)",
+            form, "data", "data.range_end", "Selected audio file: end (s)",
             lambda: dspin(0, 0, 1e5, 1.0, 2, visible_max=60), on_change=self.on_range_changed)
         dl.addLayout(form)
         self.split_btn = QtWidgets.QPushButton("Split selected into _1, _2, ...")
@@ -5164,21 +5163,21 @@ class LiveGUI(QtWidgets.QWidget):
                 if i == default_out:
                     default_text = dev_names[-1]
         self.dev_combo = self.add_element(
-            il, "inference", "inference.device", "Output device",
+            il, "inference", "inference.device", "Audio output device",
             combo_factory(dev_names, default_text or (dev_names[0] if dev_names else "")),
             on_change=lambda *_: self.on_device_changed())
         self.engine.device_id = self.dev_map[self.dev_combo.currentIndex()] if self.dev_map else None
 
         self.inf_file = self.add_element(
-            il, "inference", "inference.file", "Source (live microphone or whole file)",
+            il, "inference", "inference.file", "Source audio",
             lambda: QtWidgets.QComboBox(),
             on_change=lambda *_: self.on_inf_file(self.inf_file.currentIndex()),
             items_fn=lambda: self.inference_source_names())
         self.inf_start = self.add_element(
-            il, "inference", "inference.start", "Source start (s)",
+            il, "inference", "inference.start", "Source audio start (s)",
             lambda: dspin(0, 0, 1e5, 1.0, visible_max=60), on_change=self.apply_inf_settings)
         self.inf_end = self.add_element(
-            il, "inference", "inference.end", "Source end (s)",
+            il, "inference", "inference.end", "Source audio end (s)",
             lambda: dspin(0, 0, 1e5, 1.0, visible_max=60), on_change=self.apply_inf_settings)
         self.inf_mean = self.add_element(
             il, "inference", "inference.use_mean", "Use latent mean (no sampling)",
@@ -5204,19 +5203,19 @@ class LiveGUI(QtWidgets.QWidget):
         self._latency_timer.timeout.connect(self._apply_latency_changes)
         d = inf_settings
         self.inf_mic_prebuffer = self.add_element(
-            lf, "inference", "inference.mic_prebuffer", "Safety buffer (steps; 0 = none)",
+            lf, "inference", "inference.mic_prebuffer", "Audio buffer queue size (buffer count, 0 = no queue)",
             lambda: ispin(d.mic_prebuffer_steps, 0, 8, visible_max=8), on_change=self.on_latency_changed)
         self.inf_mic_lag = self.add_element(
-            lf, "inference", "inference.mic_max_lag", "Max backlog before skipping ahead (steps)",
+            lf, "inference", "inference.mic_max_lag", "Max audio buffer backlog (buffer count)",
             lambda: ispin(d.mic_max_lag_steps, 1, 8, visible_max=8), on_change=self.on_latency_changed)
         self.inf_lookahead = self.add_element(
-            lf, "inference", "inference.lookahead", "Vocos look-ahead (frames)",
+            lf, "inference", "inference.lookahead", "Vocos spectrogram buffer (buffer count)",
             lambda: ispin(d.lookahead_frames, 8, 64, visible_max=64), on_change=self.on_latency_changed)
         self.inf_out_latency = self.add_element(
-            lf, "inference", "inference.out_latency", "Output stream latency (ms)",
+            lf, "inference", "inference.out_latency", "Output audio buffer size (ms)",
             lambda: dspin(d.out_latency_ms, 5, 500, 5, 0, visible_max=300), on_change=self.on_latency_changed)
         self.inf_in_block = self.add_element(
-            lf, "inference", "inference.mic_input_block", "Microphone block size (samples; 0 = default)",
+            lf, "inference", "inference.mic_input_block", "Input audio buffer size (samples; 0 = default)",
             lambda: ispin(d.mic_input_block, 0, 4096, visible_max=1024), on_change=self.on_latency_changed)
         low_btn = QtWidgets.QPushButton("Low-delay preset")
         low_btn.setToolTip("Safety buffer 1, backlog 2, look-ahead 28, output latency 50 ms, microphone block 256. "
