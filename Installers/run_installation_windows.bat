@@ -25,7 +25,7 @@ echo Running from: %SCRIPT_DIR%
 echo.
 
 REM --- Each entry: source_file^|target_folder^|target_filename ---
-set "FILES[0]=pyproject_windows_cpu.toml|..\Software|pyproject.toml"
+set "FILES[0]=pyproject_windows.toml|..\Software|pyproject.toml"
 
 for /L %%i in (0,1,1) do (
     for /f "tokens=1,2,3 delims=|" %%a in ("!FILES[%%i]!") do (

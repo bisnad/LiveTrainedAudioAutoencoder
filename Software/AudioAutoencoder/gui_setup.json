@@ -16,7 +16,8 @@
     "Audio input device": true,
     "Microphone recording": true,
     "Live inference": true,
-    "Live microphone: delay settings": true,
+    "Live microphone: delay settings": false,
+    "Export generated audio": true,
     "Training parameters (live)": true,
     "Trainable parameters (full training or ConvLoRA fine-tuning)": false,
     "Model reset: partial randomization": true,
@@ -42,6 +43,7 @@
     "Chroma STFT": true,
     "Tonnetz": true,
     "Poly features (spectral polynomial fit)": true,
+    "Pitch tracking (autocorrelation)": true,
     "Graph settings": true,
     "Weighted loss contributions (rec loss scale x weight x loss; KL = beta x KL)": true,
     "Experiment session logging and bookmarks": true,
@@ -83,14 +85,19 @@
         "Stop audio": true
       },
       "Live microphone: delay settings": {
-        "Audio buffer queue size (buffer count, 0 = no queue)": false,
-        "Max audio buffer backlog (buffer count)": false,
-        "Vocos spectrogram buffer (buffer count)": false,
-        "Output audio buffer size (ms)": false,
-        "Output audio buffer size (samples; 0 = default)": false,
-        "Input audio buffer size (samples; 0 = default)": false,
-        "Low-delay preset": false,
-        "Estimated delay of about 470 ms plus input-device latency and compute...": false
+        "Audio buffer queue size (buffer count, 0 = no queue)": true,
+        "Max audio buffer backlog (buffer count)": true,
+        "Vocos spectrogram buffer (buffer count)": true,
+        "Output audio buffer size (ms)": true,
+        "Output audio buffer size (samples; 0 = default)": true,
+        "Input audio buffer size (samples; 0 = default)": true,
+        "Low-delay preset": true,
+        "Estimated delay of about 470 ms plus input-device latency and compute...": true
+      },
+      "Export generated audio": {
+        "Start capturing": true,
+        "Stop and save...": true,
+        "Idle. Press Start audio, then Start capturing.": true
       }
     },
     "Live training": {
@@ -100,20 +107,20 @@
         "Learning rate (log)": true,
         "Optimizer": false,
         "Sampling": false,
-        "Random batch size": false,
+        "Random batch size": true,
         "L-BFGS internal iterations": false,
         "L-BFGS history length": false,
         "L-BFGS reuse random batch for N steps": false,
         "Sync to inference every N steps": true,
         "Weight decay (forgetting)": true,
-        "Decay time constant": true
+        "Decay time constant": false
       },
       "Trainable parameters (full training or ConvLoRA fine-tuning)": {
-        "Trainable weights": false,
-        "ConvLoRA rank": false,
-        "ConvLoRA scaling alpha": false,
-        "ConvLoRA factorizes Conv1D/2D kernels (including causal decoder filte...": false,
-        "Merge LoRA into base and start fresh adapters": false
+        "Trainable weights": true,
+        "ConvLoRA rank": true,
+        "ConvLoRA scaling alpha": true,
+        "ConvLoRA factorizes Conv1D/2D kernels (including causal decoder filte...": true,
+        "Merge LoRA into base and start fresh adapters": true
       },
       "Model reset: partial randomization": {
         "Randomization level": true,
@@ -134,14 +141,14 @@
     },
     "Loss functions": {
       "(ungrouped)": {
-        "OTHER OPTIONAL LOSSES": true
+        "OTHER OPTIONAL LOSSES": false
       },
       "Overview": {
-        "PRIMARY LOSSES - the four reconstruction terms active by default; the...": true
+        "PRIMARY LOSSES - the four reconstruction terms active by default; the...": false
       },
       "PRIMARY | VAE log-mel distance (Vocos mels)": {
         "Weight (0 = off)": true,
-        "Distance": true,
+        "Distance": false,
         "Running value": true
       },
       "PRIMARY | Perceptual multi-res mel-STFT (auraloss)": {
@@ -152,7 +159,7 @@
       },
       "PRIMARY | Multi-resolution log linear spectrogram": {
         "Weight (0 = off)": true,
-        "Resolutions": false,
+        "Resolutions": true,
         "Smallest FFT size": true,
         "Pooled bands (0 = all bins)": false,
         "Distance": false,
@@ -161,14 +168,14 @@
       "PRIMARY | Spectral flatness": {
         "Weight (0 = off)": true,
         "FFT size": true,
-        "Log-spaced bands": false,
+        "Log-spaced bands": true,
         "dB normalization": false,
         "Distance": false,
         "Running value": true
       },
       "Multi-resolution log-mel spectrogram": {
         "Weight (0 = off)": true,
-        "Resolutions": false,
+        "Resolutions": true,
         "Smallest FFT size": true,
         "Mel bands": true,
         "Distance": false,
@@ -179,15 +186,15 @@
         "MFCC coefficients": true,
         "Mel bands": true,
         "FFT size": true,
-        "Skip c0 (overall level)": false,
-        "Also match deltas": false,
+        "Skip c0 (overall level)": true,
+        "Also match deltas": true,
         "Distance": false,
         "Running value": true
       },
       "Loudness": {
         "Weight (0 = off)": true,
         "Mode": true,
-        "FFT size (A-weighted mode)": false,
+        "FFT size (A-weighted mode)": true,
         "dB normalization": false,
         "Distance": false,
         "Running value": true
@@ -195,28 +202,28 @@
       "Spectral centroid": {
         "Weight (0 = off)": true,
         "FFT size": true,
-        "Compare in log2(Hz)": false,
+        "Compare in log2(Hz)": true,
         "Distance": false,
         "Running value": true
       },
       "Loudness-weighted spectral centroid": {
         "Weight (0 = off)": true,
         "FFT size": true,
-        "Weight exponent (0 = unweighted)": false,
-        "Compare in log2(Hz)": false,
+        "Weight exponent (0 = unweighted)": true,
+        "Compare in log2(Hz)": true,
         "Running value": true
       },
       "Temporal centroid": {
         "Weight (0 = off)": true,
-        "Envelope frame (samples)": false,
-        "Segments per window": false,
+        "Envelope frame (samples)": true,
+        "Segments per window": true,
         "Distance": false,
         "Running value": true
       },
       "Spectral bandwidth": {
         "Weight (0 = off)": true,
         "FFT size": true,
-        "Loudness weighting exponent (0 = off)": false,
+        "Loudness weighting exponent (0 = off)": true,
         "Distance": false,
         "Running value": true
       },
@@ -224,7 +231,7 @@
         "Weight (0 = off)": true,
         "FFT size": true,
         "Octave bands": true,
-        "Lowest band edge (Hz)": false,
+        "Lowest band edge (Hz)": true,
         "Peak/valley quantile": false,
         "dB normalization": false,
         "Loudness weighting exponent (0 = off)": false,
@@ -236,7 +243,7 @@
         "FFT size": true,
         "Energy fraction": true,
         "Softness (higher = sharper)": false,
-        "Compare in log2(Hz)": false,
+        "Compare in log2(Hz)": true,
         "Loudness weighting exponent (0 = off)": false,
         "Distance": false,
         "Running value": true
@@ -289,16 +296,29 @@
         "Loudness weighting exponent (0 = off)": false,
         "Distance": false,
         "Running value": true
+      },
+      "Pitch tracking (autocorrelation)": {
+        "Weight (0 = off)": true,
+        "Analysis frame (samples)": true,
+        "Pitch error unit": true,
+        "Lowest pitch (Hz)": true,
+        "Highest pitch (Hz)": true,
+        "Softness (higher = sharper)": false,
+        "Octave cost (higher = prefers higher pitch)": false,
+        "Voicing threshold (target)": false,
+        "Voicing mismatch weight": false,
+        "Distance": false,
+        "Running value": true
       }
     },
     "Training log": {
       "(ungrouped)": {
-        "Experiment logging is controlled in the Session log tab; its recordin...": false
+        "Experiment logging is controlled in the Session log tab; its recordin...": true
       },
       "Graph settings": {
         "Window width (training steps)": true,
         "Show total loss": true,
-        "Log y-axis": false
+        "Log y-axis": true
       },
       "Weighted loss contributions (rec loss scale x weight x loss; KL = beta x KL)": {
         "Loss timeline": true
@@ -307,9 +327,10 @@
     "Session log": {
       "Experiment session logging and bookmarks": {
         "Record session": true,
+        "Optional note about what you hear / are testing": true,
         "Bookmark": true,
         "Open log folder": true,
-        "Logging OFF. No experiment actions are being recorded.": true
+        "Logging OFF. No experiment actions are being recorded.": false
       },
       "Replay a recorded experiment (actions + live listening)": {
         "Load event log...": true,
@@ -318,13 +339,14 @@
         "From": false,
         "To": false,
         "Speed": false,
+        "Follow recorded play/stop": false,
         "Train while replaying": false,
         "Allow model reset / LoRA merge": false,
         "Start replay": true,
         "Pause replay": true,
         "Stop replay": true,
         "Event replay uses the CURRENT model weights (or a checkpoint you load...": false,
-        "Recorded bookmark: none yet": true
+        "Recorded bookmark: none yet": false
       }
     }
   },
@@ -349,6 +371,7 @@
     "inference.out_latency": true,
     "inference.out_block": true,
     "inference.mic_input_block": true,
+    "inference.export_panel": true,
     "training.rec_loss_scale": true,
     "training.beta": true,
     "training.learning_rate": true,
@@ -461,6 +484,16 @@
     "losses.poly.fit": true,
     "losses.poly.exponent": true,
     "losses.poly.dist": true,
+    "losses.pitch.weight": true,
+    "losses.pitch.frame": true,
+    "losses.pitch.unit": true,
+    "losses.pitch.fmin_hz": true,
+    "losses.pitch.fmax_hz": true,
+    "losses.pitch.sharpness": true,
+    "losses.pitch.octave_cost": true,
+    "losses.pitch.voicing_threshold": true,
+    "losses.pitch.voicing": true,
+    "losses.pitch.dist": true,
     "log.window_steps": true,
     "log.show_total": true,
     "log.log_y": true,

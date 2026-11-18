@@ -18,15 +18,15 @@
       "value": 0.0,
       "range": [
         0.0,
-        10.498083333333334
+        10.565083333333334
       ]
     },
     "data.range_end": {
       "common": false,
-      "value": 10.5,
+      "value": 10.57,
       "range": [
         0.0,
-        10.5
+        10.57
       ]
     },
     "data.mic_device_panel": {
@@ -37,26 +37,26 @@
     },
     "inference.device": {
       "common": false,
-      "value": "12: Speakers (RME Fireface UCX)"
+      "value": "9: Headset (2- EarPods)"
     },
     "inference.file": {
       "common": true,
-      "value": "Foley_FSD50K_WalkFootsteps_186.wav"
+      "value": "voice_chinese_AIShell3_SSB00050001.wav"
     },
     "inference.start": {
       "common": false,
       "value": 0.0,
       "range": [
         0.0,
-        11.424229166666667
+        9.444333333333333
       ]
     },
     "inference.end": {
       "common": false,
-      "value": 11.424,
+      "value": 9.444,
       "range": [
         0.0,
-        11.424229166666667
+        9.444333333333333
       ]
     },
     "inference.use_mean": {
@@ -64,7 +64,7 @@
       "value": false
     },
     "inference.noise": {
-      "common": false,
+      "common": true,
       "value": 0.0,
       "range": [
         0.0,
@@ -73,7 +73,7 @@
     },
     "inference.gain": {
       "common": true,
-      "value": 0.97,
+      "value": 1.0,
       "range": [
         0.0,
         2.0
@@ -84,7 +84,7 @@
     },
     "inference.mic_prebuffer": {
       "common": false,
-      "value": 1,
+      "value": 2,
       "range": [
         0.0,
         8.0
@@ -92,7 +92,7 @@
     },
     "inference.mic_max_lag": {
       "common": false,
-      "value": 2,
+      "value": 3,
       "range": [
         1.0,
         8.0
@@ -100,7 +100,7 @@
     },
     "inference.lookahead": {
       "common": false,
-      "value": 28,
+      "value": 32,
       "range": [
         8.0,
         64.0
@@ -108,19 +108,30 @@
     },
     "inference.out_latency": {
       "common": false,
-      "value": 50.0,
+      "value": 150.0,
       "range": [
         5.0,
         300.0
       ]
     },
+    "inference.out_block": {
+      "common": false,
+      "value": 1024,
+      "range": [
+        0.0,
+        2048.0
+      ]
+    },
     "inference.mic_input_block": {
       "common": false,
-      "value": 256,
+      "value": 0,
       "range": [
         0.0,
         1024.0
       ]
+    },
+    "inference.export_panel": {
+      "common": true
     },
     "training.rec_loss_scale": {
       "common": true,
@@ -155,8 +166,8 @@
       "value": "Random windows"
     },
     "training.batch_size": {
-      "common": false,
-      "value": 32,
+      "common": true,
+      "value": 16,
       "range": [
         1.0,
         128.0
@@ -188,7 +199,7 @@
     },
     "training.sync_interval": {
       "common": false,
-      "value": 5,
+      "value": 1,
       "range": [
         1.0,
         50.0
@@ -438,7 +449,7 @@
       "value": "L1"
     },
     "losses.centroid.weight": {
-      "common": false,
+      "common": true,
       "value": 0.0,
       "range": [
         0.0,
@@ -482,7 +493,7 @@
       "value": true
     },
     "losses.temporal.weight": {
-      "common": false,
+      "common": true,
       "value": 0.0,
       "range": [
         0.0,
@@ -722,7 +733,7 @@
       "value": "L1"
     },
     "losses.chroma.weight": {
-      "common": false,
+      "common": true,
       "value": 0.0,
       "range": [
         0.0,
@@ -754,7 +765,7 @@
       "value": "L1"
     },
     "losses.tonnetz.weight": {
-      "common": false,
+      "common": true,
       "value": 0.0,
       "range": [
         0.0,
@@ -786,7 +797,7 @@
       "value": "L1"
     },
     "losses.poly.weight": {
-      "common": false,
+      "common": true,
       "value": 0.0,
       "range": [
         0.0,
@@ -818,6 +829,74 @@
       ]
     },
     "losses.poly.dist": {
+      "common": false,
+      "value": "L1"
+    },
+    "losses.pitch.weight": {
+      "common": true,
+      "value": 0.0,
+      "range": [
+        0.0,
+        2.0
+      ]
+    },
+    "losses.pitch.frame": {
+      "common": false,
+      "value": "2048"
+    },
+    "losses.pitch.unit": {
+      "common": true,
+      "value": "Semitones"
+    },
+    "losses.pitch.fmin_hz": {
+      "common": false,
+      "value": 60.0,
+      "range": [
+        20.0,
+        500.0
+      ]
+    },
+    "losses.pitch.fmax_hz": {
+      "common": false,
+      "value": 1000.0,
+      "range": [
+        200.0,
+        4000.0
+      ]
+    },
+    "losses.pitch.sharpness": {
+      "common": false,
+      "value": 60.0,
+      "range": [
+        1.0,
+        500.0
+      ]
+    },
+    "losses.pitch.octave_cost": {
+      "common": false,
+      "value": 0.1,
+      "range": [
+        0.0,
+        0.5
+      ]
+    },
+    "losses.pitch.voicing_threshold": {
+      "common": false,
+      "value": 0.3,
+      "range": [
+        0.0,
+        0.95
+      ]
+    },
+    "losses.pitch.voicing": {
+      "common": false,
+      "value": 0.5,
+      "range": [
+        0.0,
+        10.0
+      ]
+    },
+    "losses.pitch.dist": {
       "common": false,
       "value": "L1"
     },
@@ -935,14 +1014,14 @@
         "source": 9,
         "offset": 0,
         "length": 1056537,
-        "enabled": true
+        "enabled": false
       },
       {
         "name": "voice_chinese_AIShell3_SSB00050001.wav",
         "source": 10,
         "offset": 0,
         "length": 453328,
-        "enabled": false
+        "enabled": true
       },
       {
         "name": "voice_chinese_AIShell3_SSB00730314.wav",

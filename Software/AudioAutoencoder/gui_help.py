@@ -1,26 +1,25 @@
 """
 Help popups for the live audio autoencoder GUI.
 
-Every parameter control gets a small "?" button.  Clicking it opens a short, plain-language description and a link
-to a longer explanation in a Markdown file in the Docs folder two directories above this script
-(<script folder>/../../Docs).  The link is opened in the default web browser.
+Every parameter control gets a small "?" button.  Clicking it opens a short, plain-language description.
+(The popups no longer contain a "More information" link.)
 
-All texts live in this file.  After editing them, run
+All texts live in this file.  The longer explanations are still stored here; running
     python gui_help.py
-to rewrite the Markdown files in the Docs folder from the same texts (existing files are overwritten).
+rewrites them as Markdown files in the Docs folder two directories above this script (<script folder>/../../Docs).
+Existing files there are overwritten.
 """
 import html
 import os
 import re
-import webbrowser
-from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DOCS_DIR = os.path.abspath(os.path.join(HERE, "..", "..", "Docs"))
 
 DOC_TITLES = {
     "data": ("Data selection", "Audio files, training segments and microphone recording."),
-    "inference": ("Live inference", "Listening to the autoencoder while it trains, including live microphone input."),
+    "inference": ("Live inference", "Listening to the autoencoder while it trains, live microphone input and exporting "
+                                    "the generated audio."),
     "training": ("Live training", "Optimizer, loss balance, forgetting, adaptation and model reset."),
     "losses": ("Loss functions", "What each loss term compares and what its parameters do."),
     "log": ("Log and session recording", "Loss timeline, experiment logging and replay."),
@@ -30,34 +29,38 @@ DOC_TITLES = {
 HELP = {
     # ------------------------------------------------------------------ data
     "data.files": ("Audio files",
-        "The list of audio files the autoencoder can be trained on. Tick a file to include it in the training set; "
-        "unticked audio files are not used for training but can still be listened to in live inference. Long files can optionally be cut into "
-        "numbered segments (_1, _2, ...) that can be ticked and trained on independently.",
-        "Newly added audio files are never used for training until you tick it. During training, short audio windows are drawn at random "
-        "from the ticked audio files, with longer audio files more selected more often than shorter ones. Splitting an audio file only changes the "
-        "training list: live inference always plays the whole source file. 'Remove audio files...' deletes audio files "
-        "from this list (not from disk); a audio file is unloaded when none of its segments remain."),
+        "The list of audio files (and their segments) the autoencoder can learn from. Tick an entry to include it in "
+        "training; unticked entries are ignored by training but can still be listened to. Long files can be cut into "
+        "numbered segments (_1, _2, ...) that are ticked and trained independently.",
+        "Newly added audio is never trained on until you tick it. During training, short windows are drawn at random "
+        "from the ticked entries, longer entries more often than shorter ones. Splitting a file only changes the "
+        "training list: live inference always plays the whole source file. 'Remove audio files...' deletes entries "
+        "from this list (not from disk); a source file is unloaded when none of its segments remain. Supported "
+        "formats include WAV, AIFF (.aif, .aiff, .aifc), FLAC, OGG and MP3."),
     "data.chunk_on_load": ("Duration of segments created from new audio files",
-        "Length in seconds of the segments a newly added audio file is cut into for training. 0 keeps the file whole.",
+        "Length in seconds of the pieces that new audio files, and the Split button, are cut into for training. "
+        "0 keeps new files whole, and Split then creates one single segment from start to end.",
         "Cutting a long recording into segments lets you tick only the parts you want the model to learn, for "
-        "example just a particularly interesting passage. Shorter segments do not change how audio is played back."),
-    "data.range_start": ("Selected audio file: start",
-        "Start time (seconds) of the selected audio file.",
-        "These two fields do not cut or trim the entry. Only the width (end minus start) is used when you press "
-        "'Split selected into _1, _2, ...'; the whole audio file is divided into segments of that width."),
-    "data.range_end": ("Selected audio file: end",
-        "End time (seconds) of the selected audio file.",
-        "See 'Selected entry: start'."),
+        "example just a particularly interesting passage. With a duration above 0, Split cuts the selected range into "
+        "segments of that duration (the last one may be shorter). Segments never change how audio is played back."),
+    "data.range_start": ("Selected audio file: start (s)",
+        "Start time (seconds) of the range of the selected entry that the Split button works on.",
+        "Together with 'end' it marks the part of the entry to split. If the range covers the whole entry, Split "
+        "replaces the entry by its segments; if it covers only a part, the new segments are inserted after the "
+        "original entry (unticked), which stays unchanged."),
+    "data.range_end": ("Selected audio file: end (s)",
+        "End time (seconds) of the range of the selected entry that the Split button works on.",
+        "See 'Selected audio file: start (s)'."),
     "data.mic_device_panel": ("Audio input device",
-        "A microphone or other audio input device used for recording new audio material into the dataset or for providing live "
-        "audio input for inference.",
-        "The list of audio devices is read once when the program starts, so connect a microphone before launching the application. "
-        "The audio input device is locked while a recording is running; a change during live microphone playback takes effect "
+        "The microphone or other audio input used for recording new material into the dataset and for the live "
+        "microphone input in the Live inference tab.",
+        "The list of devices is read once when the program starts, so connect a USB microphone before launching. "
+        "The device is locked while a recording is running; a change during live microphone playback takes effect "
         "after you stop and start audio."),
     "data.mic_record_panel": ("Microphone recording",
-        "Records from the selected audio input device. The 'Stop and add to dataset' button saves the audio recording as wav file in the data/audio folder and adds "
-        "it to the audio files list.",
-        "Recordings are limited to a maximum duration of 10 minutes. They are stored at the device's native sample rate and resampled to "
+        "Records from the selected input device. 'Stop and add to dataset' saves a WAV file in the audio folder and "
+        "adds it to the file list (unticked, so it is not trained on until you tick it).",
+        "Recordings are limited to 10 minutes. They are stored at the device's native sample rate and resampled to "
         "48 kHz when loaded."),
     "session.panel": ("Experiment session logging",
         "Records what you change (parameters, files, bookmarks) and training metrics to a new folder so an "
@@ -72,54 +75,64 @@ HELP = {
     "inference.device": ("Audio output device",
         "The loudspeakers or headphones used for live playback of the autoencoder output.",
         "Changing the device while audio is playing restarts the output stream."),
-    "inference.file": ("Source Audio",
-        "The source audio that is fed through the autoencoder (encoded to a latent code, then decoded back) for live "
-        "listening: the source can be an audio file, or 'Live microphone input'.",
-        "File playback always uses the whole audio file, even when it is split into several training segments. "
-        "The inference model is a copy of the training model that is refreshed regularly, so what you hear follows "
+    "inference.file": ("Source audio",
+        "The audio that is fed through the autoencoder (encoded to a compact code, then decoded back) for live "
+        "listening: a whole audio file, or 'Live microphone input' to encode your microphone in real time.",
+        "File playback always uses the whole source file, even when it is split into several training segments. "
+        "The listening model is a copy of the training model that is refreshed regularly, so what you hear follows "
         "training with a short delay. The microphone input only uses that listening copy and has no effect on "
-        "training."),
-    "inference.start": ("Source audio start",
-        "Start (seconds) of the audio source file that is played in a loop. Not used for the microphone.",
-        "Together with 'Source audio end' this selects the loop region."),
-    "inference.end": ("Source audio end",
-        "End (seconds) of the audio source file that is played in a loop. Not used for the microphone.",
-        "Together with 'Source audio start' this selects the loop region."),
-    "inference.use_mean": ("Use latent mean",
-        "The encoder describes each latent code as a normal distribution. Normally a random "
-        "sample is drawn from it; with this option the mean of the normal distribution is used instead, so the generated audio is deterministic. "
-        "Using the mean usually causes the generated audio to sound cleaner and more stable, while sampling shows how much variation the model "
-        "has learned.",
-        "The training itself always uses sampling."),
+        "training. Use headphones to avoid feedback."),
+    "inference.start": ("Source audio start (s)",
+        "Start (seconds) of the section of the source file that is played in a loop. Not used for the microphone.",
+        "Together with 'Source audio end' this selects the loop region. It has no influence on training."),
+    "inference.end": ("Source audio end (s)",
+        "End (seconds) of the looped section of the source file.", "See 'Source audio start (s)'."),
+    "inference.use_mean": ("Use latent mean (no sampling)",
+        "The encoder describes each sound as a probability distribution (a mean and a spread). Normally a random "
+        "sample is drawn from it; with this option the mean is used instead, so the output is deterministic.",
+        "Using the mean usually sounds cleaner and more stable, while sampling shows how much variation the model "
+        "has learned. The training itself always uses sampling."),
     "inference.noise": ("Latent noise",
-        "Extra random noise added to the latent code before decoding. 0 = none. "
-        "Larger values make the audio output increasingly different from the audio input and eventually unstable.",
-        "It is useful as a creative control; it never affects training."),
+        "Extra random noise added to the code before decoding. 0 = none.",
+        "Larger values make the output increasingly different from the input and eventually unstable. It is "
+        "useful as a creative control; it never affects training."),
     "inference.gain": ("Gain",
-        "Audio output volume factor. 1.0 = unchanged.",
+        "Output volume factor. 1.0 = unchanged.",
         "A soft limiter keeps loud peaks from clipping, but very high gain will still distort."),
     "inference.audio_buttons": ("Audio output",
-        "Starts and stops audio playback.", "Stopping audio also releases the microphone if it is in use."),
-    "inference.mic_prebuffer": ("Audio buffer queue size (microphone)",
-        "How many recorded audio buffers are collected before audio playback starts. More = fewer dropouts but "
+        "Starts and stops the live playback.", "Stopping audio also releases the microphone if it is in use."),
+    "inference.mic_prebuffer": ("Audio buffer queue size (buffer count, 0 = no queue)",
+        "How many generated audio chunks are collected before microphone playback starts. More = fewer dropouts but "
         "more delay. 0 = none.",
-        "Each audio buffer is one inference step long. Lower this together with the output latency to reduce delay; if "
+        "Each chunk is one inference step long. Lower this together with the output buffer size to reduce delay; if "
         "the sound starts to crackle or the underrun counter rises, raise it again."),
-    "inference.mic_max_lag": ("Max audio buffer backlog",
-        "If the model falls this many steps behind the microphone input, it skips ahead to the newest audio buffer instead of "
+    "inference.mic_max_lag": ("Max audio buffer backlog (buffer count)",
+        "If the model falls this many steps behind the microphone, it skips ahead to the newest audio instead of "
         "letting the delay grow.",
         "Smaller values cap the delay at the price of occasional skips when the computer cannot keep up."),
-    "inference.lookahead": ("Vocos spectrogram buffer",
+    "inference.lookahead": ("Vocos spectrogram buffer (buffer count)",
         "How many spectrogram frames at the end are held back before playing, because the vocoder needs some "
-        "future context to render a audio buffer properly. More = better quality, more delay.",
+        "future context to render a frame properly. More = better quality, more delay.",
         "Values below the receptive field of Vocos (roughly 27 frames) tend to cause artifacts at the edge. "
         "Each frame costs about one hop length of delay."),
-    "inference.out_latency": ("Output audio buffer size",
-        "The audio buffer size requested from the sound card, in milliseconds. Smaller = less delay, higher risk of "
+    "inference.out_latency": ("Output audio buffer size (ms)",
+        "The buffer size requested from the sound card, in milliseconds. Smaller = less delay, higher risk of "
         "crackling.", "Changing it restarts the output stream after a short pause."),
-    "inference.mic_input_block": ("Input audio buffer size",
-        "How many audio samples the microphone driver delivers at a time. 0 = driver default. Smaller blocks reduce "
+    "inference.out_block": ("Output audio buffer size (samples; 0 = default)",
+        "How many samples the sound card requests from the program at a time. 0 = driver default. Smaller blocks "
+        "reduce delay but need more CPU, and the sound can crackle if the program cannot deliver in time.",
+        "This is the same kind of setting as the output buffer size in milliseconds, but given as a number of "
+        "samples (at 48 kHz, 480 samples are 10 ms). Changing it restarts the output stream."),
+    "inference.mic_input_block": ("Input audio buffer size (samples; 0 = default)",
+        "How many samples the microphone driver delivers at a time. 0 = driver default. Smaller blocks reduce "
         "delay but need more CPU.", "Typical low-delay values are 128 to 512 samples."),
+    "inference.export_panel": ("Export generated audio",
+        "Captures the audio that live inference generates and saves it as a WAV, AIFF or FLAC file. Press Start "
+        "audio first, then Start capturing; 'Stop and save...' asks where to put the file.",
+        "The audio is captured as it is sent to the loudspeakers, including gain and limiter, and is saved as 24-bit "
+        "mono at 48 kHz. Capturing stops automatically after 10 minutes. If you cancel the save dialog, the capture "
+        "is kept until you press 'Stop and save...' again or start a new capture. Saving AIFF or FLAC needs the "
+        "'soundfile' package."),
     # ------------------------------------------------------------------ training
     "training.rec_loss_scale": ("Rec loss scale",
         "Multiplies the whole reconstruction part of the loss (all weighted loss terms together) before it is "
@@ -269,6 +282,14 @@ LOSS_INFO = {
     "poly": ("Poly features (spectral polynomial fit)",
         "Compares polynomial curves fitted to each frame's spectrum, a very coarse description of spectral tilt "
         "and shape.", ""),
+    "pitch": ("Pitch tracking (autocorrelation)",
+        "Tracks the pitch (fundamental frequency) of the original and of the reconstruction frame by frame and "
+        "compares the two pitch curves, so that melodies and pitch glides are kept.",
+        "The tracker is differentiable, so training can use it: every frame's pitch is a soft maximum of the "
+        "frame's autocorrelation between the lowest and highest allowed pitch. Only frames where the original is "
+        "clearly pitched count for the pitch error; a second term penalises reconstructions whose pitchedness "
+        "(voicing) differs from the original. Raise the weight slowly: the loss is small compared with spectral "
+        "losses."),
 }
 
 # loss parameter key -> (title, short description, longer explanation)
@@ -303,7 +324,8 @@ PARAM_INFO = {
     "log2": ("Compare in log2(Hz)", "Compares frequencies on a musical (octave) scale instead of in Hz.", ""),
     "exponent": ("Weight exponent",
         "How strongly loud frames count more than quiet ones. 0 = all frames equal.", ""),
-    "frame": ("Frame (samples)", "Length in samples of the short frames the measure is computed on.", ""),
+    "frame": ("Frame (samples)", "Length in samples of the short frames the measure is computed on. For pitch "
+        "tracking, longer frames can follow lower pitches (the frame must hold at least two periods).", ""),
     "segments": ("Segments per window", "Number of time segments the window is divided into.", ""),
     "sharpness": ("Softness / sharpness",
         "Controls how closely a smooth approximation follows the hard version of the measure. Higher = sharper "
@@ -317,13 +339,33 @@ PARAM_INFO = {
     "sigma": ("Pitch-class width", "How broadly a frequency is spread over neighbouring semitones.", ""),
     "order": ("Polynomial order", "Degree of the curve fitted to the spectrum; 0 = just the level, 1 = tilt, ...", ""),
     "fit": ("Fit on", "Whether the curve is fitted to the log or the linear magnitude.", ""),
+    "unit": ("Pitch error unit",
+        "In what unit the difference between the tracked pitches is measured. Octaves and semitones are musical "
+        "intervals, so equal intervals count equally at low and high pitches. Linear measures the plain frequency "
+        "difference, which gives high pitches more weight.",
+        "Octaves (log2 Hz) is the default. Semitones is the same measure multiplied by 12, so the loss becomes "
+        "larger and the weight may need to be lowered. Linear (kHz) compares the frequencies themselves."),
+    "fmin_hz": ("Lowest pitch (Hz)",
+        "The lowest pitch the tracker looks for.", "The analysis frame must hold at least two periods of this "
+        "pitch, so with a 2048-sample frame anything below about 47 Hz cannot be tracked."),
+    "fmax_hz": ("Highest pitch (Hz)", "The highest pitch the tracker looks for.", ""),
+    "octave_cost": ("Octave cost",
+        "Prefers the highest plausible pitch over its lower octaves. Without it the tracker can pick a sub-octave "
+        "(half the true pitch); too much makes it jump to higher octaves.", "Around 0.1 works well for typical "
+        "material."),
+    "voicing_threshold": ("Voicing threshold",
+        "How clearly pitched a frame of the original must be before its pitch counts. Frames below the threshold "
+        "(noise, silence) are ignored for the pitch error.", ""),
+    "voicing": ("Voicing mismatch weight",
+        "How strongly a difference between the original and the reconstruction in 'pitchedness' (tonal versus "
+        "noisy) is penalised, relative to the pitch error.", "0 compares pitch only."),
 }
 
 _GENERIC = ("No detailed description is available for this control yet.", "")
 
 
 def slug(title):
-    """GitHub-style heading anchor."""
+    """GitHub-style heading anchor (used for the Docs files)."""
     text = re.sub(r"[^\w\s-]", "", title.lower())
     return re.sub(r"\s+", "-", text.strip())
 
@@ -338,6 +380,10 @@ def resolve(uid, label=""):
     if uid in HELP:
         title, short, more = HELP[uid]
         return dict(title=title, short=short, more=more, doc=_group(uid), anchor=slug(title), used_in="")
+    m = re.match(r"losses\.(\w+)$", uid)                        # the "What does this loss measure?" button
+    if m and m.group(1) in LOSS_INFO:
+        title, short, more = LOSS_INFO[m.group(1)]
+        return dict(title=title, short=short, more=more, doc="losses", anchor=slug(title), used_in="")
     m = re.match(r"losses\.(\w+)\.(\w+)$", uid)
     if m and m.group(1) in LOSS_INFO:
         key, param = m.groups()
@@ -352,30 +398,6 @@ def resolve(uid, label=""):
             title, short, more = PARAM_INFO[param]
             return dict(title=title, short=short, more=more, doc="losses", anchor=slug(title), used_in=loss_title)
     return dict(title=label or uid, short=_GENERIC[0], more=_GENERIC[1], doc=None, anchor="", used_in="")
-
-
-def doc_path(info):
-    return os.path.join(DOCS_DIR, info["doc"] + ".md") if info.get("doc") else None
-
-
-def doc_uri(info):
-    path = doc_path(info)
-    if path is None:
-        return None
-    uri = Path(path).resolve().as_uri()
-    return uri + ("#" + info["anchor"] if info.get("anchor") else "")
-
-
-def open_doc(info):
-    uri = doc_uri(info)
-    if uri is None:
-        return
-    try:
-        if not webbrowser.open(uri):
-            raise RuntimeError("no browser")
-    except Exception:
-        from PyQt5 import QtCore, QtGui
-        QtGui.QDesktopServices.openUrl(QtCore.QUrl(uri))
 
 
 # ------------------------------------------------------------------------------------------ Qt part
@@ -400,7 +422,7 @@ def show_help(anchor_widget, uid, label=""):
     head = QtWidgets.QLabel(f"<b>{html.escape(info['title'], quote=False)}</b>")
     head.setStyleSheet("font-size: 14px;")
     lay.addWidget(head)
-    text = QtWidgets.QLabel(info["short"])
+    text = QtWidgets.QLabel(info["short"])                      # plain text: no HTML escaping needed
     text.setTextFormat(QtCore.Qt.PlainText)
     text.setWordWrap(True)
     text.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
@@ -409,17 +431,6 @@ def show_help(anchor_widget, uid, label=""):
         used = QtWidgets.QLabel(f"<i>Used in: {html.escape(info['used_in'], quote=False)}</i>")
         used.setWordWrap(True)
         lay.addWidget(used)
-    path = doc_path(info)
-    if path is not None:
-        link = QtWidgets.QLabel()
-        link.setWordWrap(True)
-        if os.path.isfile(path):
-            link.setText(f'<a href="doc">More information: {html.escape(os.path.basename(path), quote=False)}</a>')
-            link.linkActivated.connect(lambda *_: open_doc(info))
-        else:
-            link.setText(f"<i>More information: {html.escape(path)} (file not found; run "
-                         f"<code>python gui_help.py</code> to create the Docs files)</i>")
-        lay.addWidget(link)
     row = QtWidgets.QHBoxLayout()
     row.addStretch(1)
     close = QtWidgets.QPushButton("Close")
@@ -439,7 +450,7 @@ def make_help_button(uid, label=""):
     btn.setFixedSize(18, 18)
     btn.setFocusPolicy(QtCore.Qt.NoFocus)
     btn.setCursor(QtCore.Qt.PointingHandCursor)
-    btn.setToolTip("info")
+    btn.setToolTip("What does this do?")
     btn.setStyleSheet("QToolButton { border: 1px solid #4a7fc1; border-radius: 9px; color: #4a7fc1; "
                       "font-weight: bold; padding: 0px; } QToolButton:hover { background: #4a7fc1; color: white; }")
     btn.clicked.connect(lambda *_: show_help(btn, uid, label))

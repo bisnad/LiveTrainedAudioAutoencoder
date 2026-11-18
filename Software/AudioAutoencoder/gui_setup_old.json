@@ -1,0 +1,471 @@
+{
+  "format": "live_audio_vae_gui_setup",
+  "version": 2,
+  "_comment": "Set an entry to false to remove that tab, group box, control, button or text from the GUI for all users. Entries that are not listed are shown. 'items' lists every addressable item as tab -> group box -> name shown in the GUI. 'elements' offers the same controls by id (wildcards * and ? allowed, e.g. \"losses.onset.*\": false).",
+  "tabs": {
+    "Common": true,
+    "Data selection": true,
+    "Live inference": true,
+    "Live training": true,
+    "Loss functions": true,
+    "Training log": true,
+    "Session log": true
+  },
+  "groups": {
+    "Training set: audio files and segments": true,
+    "Audio input device": true,
+    "Microphone recording": true,
+    "Live inference": true,
+    "Live microphone: delay settings": true,
+    "Training parameters (live)": true,
+    "Trainable parameters (full training or ConvLoRA fine-tuning)": false,
+    "Model reset: partial randomization": true,
+    "Notes": true,
+    "Training control": true,
+    "Overview": true,
+    "PRIMARY | VAE log-mel distance (Vocos mels)": true,
+    "PRIMARY | Perceptual multi-res mel-STFT (auraloss)": true,
+    "PRIMARY | Multi-resolution log linear spectrogram": true,
+    "PRIMARY | Spectral flatness": true,
+    "Multi-resolution log-mel spectrogram": true,
+    "MFCC": true,
+    "Loudness": true,
+    "Spectral centroid": true,
+    "Loudness-weighted spectral centroid": true,
+    "Temporal centroid": true,
+    "Spectral bandwidth": true,
+    "Spectral contrast": true,
+    "Spectral rolloff (soft)": true,
+    "Onset strength": true,
+    "RMS": true,
+    "Zero-crossing rate (soft)": true,
+    "Chroma STFT": true,
+    "Tonnetz": true,
+    "Poly features (spectral polynomial fit)": true,
+    "Graph settings": true,
+    "Weighted loss contributions (rec loss scale x weight x loss; KL = beta x KL)": true,
+    "Experiment session logging and bookmarks": true,
+    "Replay a recorded experiment (actions + live listening)": true
+  },
+  "items": {
+    "Data selection": {
+      "Training set: audio files and segments": {
+        "Newly added audio files are not automatically part of the training se...": true,
+        "Audio files": true,
+        "Add audio files...": true,
+        "Remove audio files...": true,
+        "Duration of segments created from new audio files": false,
+        "Selected audio file: start (s)": false,
+        "Selected audio file: end (s)": false,
+        "Split selected into _1, _2, ...": false,
+        "Select an audio file, choose a range with start and end, set the segm...": false
+      },
+      "Audio input device": {
+        "Input device": true
+      },
+      "Microphone recording": {
+        "Start recording": true,
+        "Stop and add to dataset": true,
+        "Idle. Choose an input device and press Start recording.": true
+      }
+    },
+    "Live inference": {
+      "Live inference": {
+        "Audio output device": true,
+        "Source audio": true,
+        "Source audio start (s)": false,
+        "Source audio end (s)": false,
+        "Use latent mean (no sampling)": false,
+        "Latent noise": true,
+        "Gain": true,
+        "Audio output": true,
+        "Start audio": true,
+        "Stop audio": true
+      },
+      "Live microphone: delay settings": {
+        "Audio buffer queue size (buffer count, 0 = no queue)": false,
+        "Max audio buffer backlog (buffer count)": false,
+        "Vocos spectrogram buffer (buffer count)": false,
+        "Output audio buffer size (ms)": false,
+        "Output audio buffer size (samples; 0 = default)": false,
+        "Input audio buffer size (samples; 0 = default)": false,
+        "Low-delay preset": false,
+        "Estimated delay of about 470 ms plus input-device latency and compute...": false
+      }
+    },
+    "Live training": {
+      "Training parameters (live)": {
+        "Rec loss scale": true,
+        "Beta (KL factor)": true,
+        "Learning rate (log)": true,
+        "Optimizer": false,
+        "Sampling": false,
+        "Random batch size": true,
+        "L-BFGS internal iterations": false,
+        "L-BFGS history length": false,
+        "L-BFGS reuse random batch for N steps": false,
+        "Sync to inference every N steps": true,
+        "Weight decay (forgetting)": true,
+        "Decay time constant": true
+      },
+      "Trainable parameters (full training or ConvLoRA fine-tuning)": {
+        "Trainable weights": false,
+        "ConvLoRA rank": false,
+        "ConvLoRA scaling alpha": false,
+        "ConvLoRA factorizes Conv1D/2D kernels (including causal decoder filte...": false,
+        "Merge LoRA into base and start fresh adapters": false
+      },
+      "Model reset: partial randomization": {
+        "Randomization level": true,
+        "Affected weights": false,
+        "Mixing": false,
+        "Used by the 'Reset model' button. Level 0.0 keeps every selected weig...": false
+      },
+      "Notes": {
+        "Total loss = rec loss scale x sum(weight x loss) + beta x KL. Full da...": false
+      },
+      "Training control": {
+        "Pause / reset / checkpoint buttons": true,
+        "Pause training": true,
+        "Reset model": true,
+        "Save checkpoint": true,
+        "Load checkpoint...": true
+      }
+    },
+    "Loss functions": {
+      "(ungrouped)": {
+        "OTHER OPTIONAL LOSSES": true
+      },
+      "Overview": {
+        "PRIMARY LOSSES - the four reconstruction terms active by default; the...": true
+      },
+      "PRIMARY | VAE log-mel distance (Vocos mels)": {
+        "Weight (0 = off)": true,
+        "Distance": true,
+        "Running value": true
+      },
+      "PRIMARY | Perceptual multi-res mel-STFT (auraloss)": {
+        "Weight (0 = off)": true,
+        "Mel bins": true,
+        "Perceptual weighting": false,
+        "Running value": true
+      },
+      "PRIMARY | Multi-resolution log linear spectrogram": {
+        "Weight (0 = off)": true,
+        "Resolutions": false,
+        "Smallest FFT size": true,
+        "Pooled bands (0 = all bins)": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "PRIMARY | Spectral flatness": {
+        "Weight (0 = off)": true,
+        "FFT size": true,
+        "Log-spaced bands": false,
+        "dB normalization": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "Multi-resolution log-mel spectrogram": {
+        "Weight (0 = off)": true,
+        "Resolutions": false,
+        "Smallest FFT size": true,
+        "Mel bands": true,
+        "Distance": false,
+        "Running value": true
+      },
+      "MFCC": {
+        "Weight (0 = off)": true,
+        "MFCC coefficients": true,
+        "Mel bands": true,
+        "FFT size": true,
+        "Skip c0 (overall level)": true,
+        "Also match deltas": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "Loudness": {
+        "Weight (0 = off)": true,
+        "Mode": true,
+        "FFT size (A-weighted mode)": false,
+        "dB normalization": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "Spectral centroid": {
+        "Weight (0 = off)": true,
+        "FFT size": true,
+        "Compare in log2(Hz)": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "Loudness-weighted spectral centroid": {
+        "Weight (0 = off)": true,
+        "FFT size": true,
+        "Weight exponent (0 = unweighted)": false,
+        "Compare in log2(Hz)": false,
+        "Running value": true
+      },
+      "Temporal centroid": {
+        "Weight (0 = off)": true,
+        "Envelope frame (samples)": false,
+        "Segments per window": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "Spectral bandwidth": {
+        "Weight (0 = off)": true,
+        "FFT size": true,
+        "Loudness weighting exponent (0 = off)": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "Spectral contrast": {
+        "Weight (0 = off)": true,
+        "FFT size": true,
+        "Octave bands": true,
+        "Lowest band edge (Hz)": false,
+        "Peak/valley quantile": false,
+        "dB normalization": false,
+        "Loudness weighting exponent (0 = off)": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "Spectral rolloff (soft)": {
+        "Weight (0 = off)": true,
+        "FFT size": true,
+        "Energy fraction": true,
+        "Softness (higher = sharper)": false,
+        "Compare in log2(Hz)": false,
+        "Loudness weighting exponent (0 = off)": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "Onset strength": {
+        "Weight (0 = off)": true,
+        "FFT size": true,
+        "Mel bands": true,
+        "Frame lag": false,
+        "dB normalization": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "RMS": {
+        "Weight (0 = off)": true,
+        "Frame (samples)": true,
+        "Compare in dB": false,
+        "dB normalization": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "Zero-crossing rate (soft)": {
+        "Weight (0 = off)": true,
+        "Frame (samples)": true,
+        "Sign softness (higher = sharper)": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "Chroma STFT": {
+        "Weight (0 = off)": true,
+        "FFT size": true,
+        "Pitch-class width (semitones)": true,
+        "Loudness weighting exponent (0 = off)": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "Tonnetz": {
+        "Weight (0 = off)": true,
+        "FFT size": true,
+        "Pitch-class width (semitones)": true,
+        "Loudness weighting exponent (0 = off)": false,
+        "Distance": false,
+        "Running value": true
+      },
+      "Poly features (spectral polynomial fit)": {
+        "Weight (0 = off)": true,
+        "FFT size": true,
+        "Polynomial order": false,
+        "Fit on": false,
+        "Loudness weighting exponent (0 = off)": false,
+        "Distance": false,
+        "Running value": true
+      }
+    },
+    "Training log": {
+      "(ungrouped)": {
+        "Experiment logging is controlled in the Session log tab; its recordin...": false
+      },
+      "Graph settings": {
+        "Window width (training steps)": true,
+        "Show total loss": true,
+        "Log y-axis": false
+      },
+      "Weighted loss contributions (rec loss scale x weight x loss; KL = beta x KL)": {
+        "Loss timeline": true
+      }
+    },
+    "Session log": {
+      "Experiment session logging and bookmarks": {
+        "Record session": true,
+        "Bookmark": true,
+        "Open log folder": true,
+        "Logging OFF. No experiment actions are being recorded.": true
+      },
+      "Replay a recorded experiment (actions + live listening)": {
+        "Load event log...": true,
+        "Audio folder...": true,
+        "No replay log loaded": true,
+        "From": false,
+        "To": false,
+        "Speed": false,
+        "Train while replaying": false,
+        "Allow model reset / LoRA merge": false,
+        "Start replay": true,
+        "Pause replay": true,
+        "Stop replay": true,
+        "Event replay uses the CURRENT model weights (or a checkpoint you load...": false,
+        "Recorded bookmark: none yet": true
+      }
+    }
+  },
+  "elements": {
+    "data.files": true,
+    "data.chunk_on_load": true,
+    "data.range_start": true,
+    "data.range_end": true,
+    "data.mic_device_panel": true,
+    "data.mic_record_panel": true,
+    "inference.device": true,
+    "inference.file": true,
+    "inference.start": true,
+    "inference.end": true,
+    "inference.use_mean": true,
+    "inference.noise": true,
+    "inference.gain": true,
+    "inference.audio_buttons": true,
+    "inference.mic_prebuffer": true,
+    "inference.mic_max_lag": true,
+    "inference.lookahead": true,
+    "inference.out_latency": true,
+    "inference.out_block": true,
+    "inference.mic_input_block": true,
+    "training.rec_loss_scale": true,
+    "training.beta": true,
+    "training.learning_rate": true,
+    "training.optimizer": true,
+    "training.batch_mode": true,
+    "training.batch_size": true,
+    "training.lbfgs_iters": true,
+    "training.lbfgs_history": true,
+    "training.lbfgs_hold": true,
+    "training.sync_interval": true,
+    "training.weight_decay": true,
+    "training.train_mode": true,
+    "training.lora_rank": true,
+    "training.lora_alpha": true,
+    "training.reset_level": true,
+    "training.reset_scope": true,
+    "training.reset_mix": true,
+    "training.controls": true,
+    "losses.vae_mel.weight": true,
+    "losses.vae_mel.dist": true,
+    "losses.mr_stft.weight": true,
+    "losses.mr_stft.n_bins": true,
+    "losses.mr_stft.perceptual": true,
+    "losses.lin_mr.weight": true,
+    "losses.lin_mr.n_res": true,
+    "losses.lin_mr.min_fft": true,
+    "losses.lin_mr.n_bands": true,
+    "losses.lin_mr.dist": true,
+    "losses.flatness.weight": true,
+    "losses.flatness.n_fft": true,
+    "losses.flatness.n_bands": true,
+    "losses.flatness.db_div": true,
+    "losses.flatness.dist": true,
+    "losses.mel_mr.weight": true,
+    "losses.mel_mr.n_res": true,
+    "losses.mel_mr.min_fft": true,
+    "losses.mel_mr.n_mels": true,
+    "losses.mel_mr.dist": true,
+    "losses.mfcc.weight": true,
+    "losses.mfcc.n_mfcc": true,
+    "losses.mfcc.n_mels": true,
+    "losses.mfcc.n_fft": true,
+    "losses.mfcc.skip_c0": true,
+    "losses.mfcc.deltas": true,
+    "losses.mfcc.dist": true,
+    "losses.loudness.weight": true,
+    "losses.loudness.mode": true,
+    "losses.loudness.n_fft": true,
+    "losses.loudness.db_div": true,
+    "losses.loudness.dist": true,
+    "losses.centroid.weight": true,
+    "losses.centroid.n_fft": true,
+    "losses.centroid.log2": true,
+    "losses.centroid.dist": true,
+    "losses.lw_centroid.weight": true,
+    "losses.lw_centroid.n_fft": true,
+    "losses.lw_centroid.exponent": true,
+    "losses.lw_centroid.log2": true,
+    "losses.temporal.weight": true,
+    "losses.temporal.frame": true,
+    "losses.temporal.segments": true,
+    "losses.temporal.dist": true,
+    "losses.bandwidth.weight": true,
+    "losses.bandwidth.n_fft": true,
+    "losses.bandwidth.exponent": true,
+    "losses.bandwidth.dist": true,
+    "losses.contrast.weight": true,
+    "losses.contrast.n_fft": true,
+    "losses.contrast.n_bands": true,
+    "losses.contrast.fmin": true,
+    "losses.contrast.quantile": true,
+    "losses.contrast.db_div": true,
+    "losses.contrast.exponent": true,
+    "losses.contrast.dist": true,
+    "losses.rolloff.weight": true,
+    "losses.rolloff.n_fft": true,
+    "losses.rolloff.percent": true,
+    "losses.rolloff.sharpness": true,
+    "losses.rolloff.log2": true,
+    "losses.rolloff.exponent": true,
+    "losses.rolloff.dist": true,
+    "losses.onset.weight": true,
+    "losses.onset.n_fft": true,
+    "losses.onset.n_mels": true,
+    "losses.onset.lag": true,
+    "losses.onset.db_div": true,
+    "losses.onset.dist": true,
+    "losses.rms.weight": true,
+    "losses.rms.frame": true,
+    "losses.rms.in_db": true,
+    "losses.rms.db_div": true,
+    "losses.rms.dist": true,
+    "losses.zcr.weight": true,
+    "losses.zcr.frame": true,
+    "losses.zcr.sharpness": true,
+    "losses.zcr.dist": true,
+    "losses.chroma.weight": true,
+    "losses.chroma.n_fft": true,
+    "losses.chroma.sigma": true,
+    "losses.chroma.exponent": true,
+    "losses.chroma.dist": true,
+    "losses.tonnetz.weight": true,
+    "losses.tonnetz.n_fft": true,
+    "losses.tonnetz.sigma": true,
+    "losses.tonnetz.exponent": true,
+    "losses.tonnetz.dist": true,
+    "losses.poly.weight": true,
+    "losses.poly.n_fft": true,
+    "losses.poly.order": true,
+    "losses.poly.fit": true,
+    "losses.poly.exponent": true,
+    "losses.poly.dist": true,
+    "log.window_steps": true,
+    "log.show_total": true,
+    "log.log_y": true,
+    "log.plot": true,
+    "session.panel": true,
+    "replay.panel": true
+  }
+}

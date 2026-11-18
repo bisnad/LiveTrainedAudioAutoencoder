@@ -7,4 +7,4 @@ SCRIPT_PATH=$(cd "$(dirname "$0")"; pwd -P)
 cd "$SCRIPT_PATH"
 
 # Run the Python script
-uv run audio_vae_vocos_cnn_live_train_v23.py
+uv run audio_autoencoder.py
