@@ -833,7 +833,7 @@
       "value": "L1"
     },
     "losses.pitch.weight": {
-      "common": true,
+      "common": false,
       "value": 0.0,
       "range": [
         0.0,
@@ -845,7 +845,7 @@
       "value": "2048"
     },
     "losses.pitch.unit": {
-      "common": true,
+      "common": false,
       "value": "Semitones"
     },
     "losses.pitch.fmin_hz": {
