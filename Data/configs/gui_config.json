@@ -37,7 +37,7 @@
     },
     "inference.device": {
       "common": false,
-      "value": "9: Headset (2- EarPods)"
+      "value": "8: Speakers (Realtek(R) Audio)"
     },
     "inference.file": {
       "common": true,
@@ -284,70 +284,6 @@
       "common": false,
       "value": true
     },
-    "losses.lin_mr.weight": {
-      "common": true,
-      "value": 0.5,
-      "range": [
-        0.0,
-        2.0
-      ]
-    },
-    "losses.lin_mr.n_res": {
-      "common": false,
-      "value": 3,
-      "range": [
-        1.0,
-        5.0
-      ]
-    },
-    "losses.lin_mr.min_fft": {
-      "common": false,
-      "value": "512"
-    },
-    "losses.lin_mr.n_bands": {
-      "common": false,
-      "value": 0,
-      "range": [
-        0.0,
-        2048.0
-      ]
-    },
-    "losses.lin_mr.dist": {
-      "common": false,
-      "value": "L1"
-    },
-    "losses.flatness.weight": {
-      "common": true,
-      "value": 0.5,
-      "range": [
-        0.0,
-        2.0
-      ]
-    },
-    "losses.flatness.n_fft": {
-      "common": false,
-      "value": "2048"
-    },
-    "losses.flatness.n_bands": {
-      "common": false,
-      "value": 8,
-      "range": [
-        1.0,
-        64.0
-      ]
-    },
-    "losses.flatness.db_div": {
-      "common": false,
-      "value": 10.0,
-      "range": [
-        1.0,
-        200.0
-      ]
-    },
-    "losses.flatness.dist": {
-      "common": false,
-      "value": "L1"
-    },
     "losses.mel_mr.weight": {
       "common": true,
       "value": 0.0,
@@ -377,6 +313,38 @@
       ]
     },
     "losses.mel_mr.dist": {
+      "common": false,
+      "value": "L1"
+    },
+    "losses.lin_mr.weight": {
+      "common": true,
+      "value": 0.5,
+      "range": [
+        0.0,
+        2.0
+      ]
+    },
+    "losses.lin_mr.n_res": {
+      "common": false,
+      "value": 3,
+      "range": [
+        1.0,
+        5.0
+      ]
+    },
+    "losses.lin_mr.min_fft": {
+      "common": false,
+      "value": "512"
+    },
+    "losses.lin_mr.n_bands": {
+      "common": false,
+      "value": 0,
+      "range": [
+        0.0,
+        2048.0
+      ]
+    },
+    "losses.lin_mr.dist": {
       "common": false,
       "value": "L1"
     },
@@ -445,6 +413,38 @@
       ]
     },
     "losses.loudness.dist": {
+      "common": false,
+      "value": "L1"
+    },
+    "losses.flatness.weight": {
+      "common": true,
+      "value": 0.5,
+      "range": [
+        0.0,
+        2.0
+      ]
+    },
+    "losses.flatness.n_fft": {
+      "common": false,
+      "value": "2048"
+    },
+    "losses.flatness.n_bands": {
+      "common": false,
+      "value": 8,
+      "range": [
+        1.0,
+        64.0
+      ]
+    },
+    "losses.flatness.db_div": {
+      "common": false,
+      "value": 10.0,
+      "range": [
+        1.0,
+        200.0
+      ]
+    },
+    "losses.flatness.dist": {
       "common": false,
       "value": "L1"
     },
@@ -910,11 +910,11 @@
     },
     "log.show_total": {
       "common": false,
-      "value": false
+      "value": true
     },
     "log.log_y": {
       "common": false,
-      "value": false
+      "value": true
     },
     "log.plot": {
       "common": false

@@ -6116,7 +6116,7 @@ class LiveGUI(QtWidgets.QWidget):
         self.w_batch_mode = A(form, "training", "training.batch_mode", "Sampling",
                               combo_factory(["Random windows", "Full dataset windows"], ts.batch_mode),
                               on_change=self.apply_train_settings)
-        self.w_bs = A(form, "training", "training.batch_size", "Random batch size",
+        self.w_bs = A(form, "training", "training.batch_size", "Batch size",
                       lambda: ispin(ts.batch_size, 1, 512, visible_max=128), on_change=self.apply_train_settings)
         self.w_lbfgs_iters = A(form, "training", "training.lbfgs_iters", "L-BFGS internal iterations",
                                lambda: ispin(ts.lbfgs_max_iter, 1, 50), on_change=self.apply_train_settings)
@@ -6125,7 +6125,7 @@ class LiveGUI(QtWidgets.QWidget):
         self.w_lbfgs_hold = A(form, "training", "training.lbfgs_hold", "L-BFGS reuse random batch for N steps",
                               lambda: ispin(ts.lbfgs_hold_steps, 1, 1000, visible_max=100),
                               on_change=self.apply_train_settings)
-        self.w_sync = A(form, "training", "training.sync_interval", "Sync to inference every N steps",
+        self.w_sync = A(form, "training", "training.sync_interval", "Inference weight update interval",
                         lambda: ispin(ts.sync_interval, 1, 1000, visible_max=50),
                         on_change=self.apply_train_settings)
         self.w_wd = A(form, "training", "training.weight_decay", "Weight decay (forgetting)",
@@ -6303,6 +6303,7 @@ class LiveGUI(QtWidgets.QWidget):
             self.trainer.load_req = p
 
     # ---------------------------------------------------------------- Loss functions tab
+    """
     def build_loss_tab(self):
         scroll = QtWidgets.QScrollArea()
         scroll.setWidgetResizable(True)
@@ -6327,6 +6328,24 @@ class LiveGUI(QtWidgets.QWidget):
         lay.addStretch(1)
         scroll.setWidget(inner)
         return scroll
+    """
+
+    def build_loss_tab(self):
+        scroll = QtWidgets.QScrollArea()
+        scroll.setWidgetResizable(True)
+        inner = QtWidgets.QWidget()
+        lay = QtWidgets.QVBoxLayout(inner)
+        info_box = QtWidgets.QGroupBox("Overview")
+        label = QtWidgets.QLabel(
+            "LOSSES - all audio reconstruction terms available. The KL term is controlled in the Live training tab.")
+        label.setWordWrap(True)
+        QtWidgets.QVBoxLayout(info_box).addWidget(label)
+        lay.addWidget(info_box)
+        for spec in LOSS_SPECS:
+                lay.addWidget(self.build_loss_group(spec))
+        lay.addStretch(1)
+        scroll.setWidget(inner)
+        return scroll
 
     def add_loss_weight(self, form, key, common_title):
         return self.add_element(
@@ -6338,7 +6357,7 @@ class LiveGUI(QtWidgets.QWidget):
     def build_loss_group(self, spec):
         key = spec["key"]
         primary = key in PRIMARY_LOSS_KEYS
-        box = QtWidgets.QGroupBox(("PRIMARY | " if primary else "") + spec["title"])
+        box = QtWidgets.QGroupBox(spec["title"])
         form = QtWidgets.QFormLayout(box)
         short = PRIMARY_LOSS_LABELS.get(key, spec["title"])
         self.add_loss_weight(form, key, short)

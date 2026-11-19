@@ -24,10 +24,10 @@
     "Notes": true,
     "Training control": true,
     "Overview": true,
-    "PRIMARY | VAE log-mel distance (Vocos mels)": true,
-    "PRIMARY | Perceptual multi-res mel-STFT (auraloss)": true,
-    "PRIMARY | Multi-resolution log linear spectrogram": true,
-    "PRIMARY | Spectral flatness": true,
+    "VAE log-mel distance (Vocos mels)": true,
+    "Perceptual multi-res mel-STFT (auraloss)": true,
+    "Multi-resolution log linear spectrogram": true,
+    "Spectral flatness": true,
     "Multi-resolution log-mel spectrogram": true,
     "MFCC": true,
     "Loudness": true,
@@ -43,7 +43,7 @@
     "Chroma STFT": true,
     "Tonnetz": true,
     "Poly features (spectral polynomial fit)": true,
-    "Pitch tracking (autocorrelation)": true,
+    "Pitch tracking (autocorrelation)": false,
     "Graph settings": true,
     "Weighted loss contributions (rec loss scale x weight x loss; KL = beta x KL)": true,
     "Experiment session logging and bookmarks": true,
@@ -52,7 +52,7 @@
   "items": {
     "Data selection": {
       "Training set: audio files and segments": {
-        "Newly added audio files are not automatically part of the training se...": true,
+        "Newly added audio files are not automatically part of the training se...": false,
         "Audio files": true,
         "Add audio files...": true,
         "Remove audio files...": true,
@@ -107,11 +107,11 @@
         "Learning rate (log)": true,
         "Optimizer": false,
         "Sampling": false,
-        "Random batch size": true,
+        "Batch size": true,
         "L-BFGS internal iterations": false,
         "L-BFGS history length": false,
         "L-BFGS reuse random batch for N steps": false,
-        "Sync to inference every N steps": true,
+        "Inference weight update interval": true,
         "Weight decay (forgetting)": true,
         "Decay time constant": false
       },
@@ -124,7 +124,7 @@
       },
       "Model reset: partial randomization": {
         "Randomization level": true,
-        "Affected weights": false,
+        "Affected weights": true,
         "Mixing": false,
         "Used by the 'Reset model' button. Level 0.0 keeps every selected weig...": false
       },
@@ -140,24 +140,21 @@
       }
     },
     "Loss functions": {
-      "(ungrouped)": {
-        "OTHER OPTIONAL LOSSES": false
-      },
       "Overview": {
-        "PRIMARY LOSSES - the four reconstruction terms active by default; the...": false
+        "LOSSES - all audio reconstruction terms available. The KL term is con...": false
       },
-      "PRIMARY | VAE log-mel distance (Vocos mels)": {
+      "VAE log-mel distance (Vocos mels)": {
         "Weight (0 = off)": true,
         "Distance": false,
         "Running value": true
       },
-      "PRIMARY | Perceptual multi-res mel-STFT (auraloss)": {
+      "Perceptual multi-res mel-STFT (auraloss)": {
         "Weight (0 = off)": true,
         "Mel bins": true,
-        "Perceptual weighting": false,
+        "Perceptual weighting": true,
         "Running value": true
       },
-      "PRIMARY | Multi-resolution log linear spectrogram": {
+      "Multi-resolution log linear spectrogram": {
         "Weight (0 = off)": true,
         "Resolutions": true,
         "Smallest FFT size": true,
@@ -165,7 +162,7 @@
         "Distance": false,
         "Running value": true
       },
-      "PRIMARY | Spectral flatness": {
+      "Spectral flatness": {
         "Weight (0 = off)": true,
         "FFT size": true,
         "Log-spaced bands": true,
@@ -194,7 +191,7 @@
       "Loudness": {
         "Weight (0 = off)": true,
         "Mode": true,
-        "FFT size (A-weighted mode)": true,
+        "FFT size (A-weighted mode)": false,
         "dB normalization": false,
         "Distance": false,
         "Running value": true
@@ -313,7 +310,7 @@
     },
     "Training log": {
       "(ungrouped)": {
-        "Experiment logging is controlled in the Session log tab; its recordin...": true
+        "Experiment logging is controlled in the Session log tab; its recordin...": false
       },
       "Graph settings": {
         "Window width (training steps)": true,
