@@ -63,6 +63,7 @@ import wave
 import math
 import ntpath
 import tempfile
+import shutil
 from dataclasses import dataclass, asdict
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -3258,7 +3259,7 @@ GROUP_STYLE = ("QGroupBox { border: 2px solid #3985bd; border-radius: 7px; margi
 
 GUI_CATEGORIES = [("data", "Data selection"), ("inference", "Live inference"),
                   ("training", "Live training"), ("losses", "Loss functions"), ("log", "Training log"),
-                  ("session", "Session recording"), ("replay", "Session replay")]
+                  ("session", "Session recording and replay")]
 
 
 def _get_value(w):
@@ -3497,29 +3498,72 @@ def _copy_aux_widget(source, destination, *, preserve_active_edit=False):
 
 
 class SessionNotesDialog(QtWidgets.QDialog):
-    """Free-text notes written by the user when a session log is stopped."""
-    def __init__(self, parent, session_name):
-        super().__init__(parent)
-        self.setWindowTitle("Session notes")
-        self.setMinimumSize(560, 360)
-        lay = QtWidgets.QVBoxLayout(self)
-        hint = QtWidgets.QLabel(
-            f"Notes for session {session_name}.")
-        hint.setWordWrap(True)
-        lay.addWidget(hint)
-        self.edit = QtWidgets.QPlainTextEdit()
-        self.edit.setPlaceholderText("Write your notes about this session here (can stay empty)")
-        lay.addWidget(self.edit, 1)
-        buttons = QtWidgets.QDialogButtonBox()
-        save = buttons.addButton("Save notes and stop log", QtWidgets.QDialogButtonBox.AcceptRole)
-        save.setDefault(True)
-        buttons.addButton("Cancel (keep logging)", QtWidgets.QDialogButtonBox.RejectRole)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        lay.addWidget(buttons)
+    """Notes written by the user when a session recording ends (stop button or closing the application).
 
-    def text(self):
-        return self.edit.toPlainText().strip()
+    After exec_(), `action` is "save", "discard" or None (dialog dismissed = cancel).
+    The three text fields show a grayed-out hint that disappears as soon as the user types.
+    """
+    FIELDS = (
+        ("session", "Session Notes",
+         "How did the session go? For example: What did you try to achieve, and did the results match your "
+         "expectations? What worked, what didn't, and which parts of the tool were helpful or cumbersome? "
+         "What did you learn about the tool and the autoencoder?"),
+        ("audio", "Audio Notes",
+         "What happened acoustically? For example: What audio material did you use? How did the sound change, "
+         "and how interesting was the result? How well could you steer it?"),
+        ("free", "Free Notes",
+         "Anything else you'd like to note? For example: What ideas arose? What problems did you encounter? "
+         "What questions would help you use the tool better?"),
+    )
+
+    def __init__(self, parent, session_name, closing=False):
+        super().__init__(parent)
+        self.action = None
+        self.setWindowTitle("Close application" if closing else "Stop session recording")
+        self.setMinimumSize(640, 620)
+        lay = QtWidgets.QVBoxLayout(self)
+        intro = QtWidgets.QLabel(
+            f"Session {session_name}. All fields are optional. The notes are saved as session_notes.txt "
+            "in the session folder together with the session log.")
+        intro.setWordWrap(True)
+        lay.addWidget(intro)
+        self.edits = {}
+        for key, title, hint in self.FIELDS:
+            label = QtWidgets.QLabel(title)
+            label.setStyleSheet("font-weight: 600;")
+            lay.addWidget(label)
+            edit = QtWidgets.QPlainTextEdit()
+            edit.setPlaceholderText(hint)                 # grayed out, disappears when typing starts
+            edit.setMinimumHeight(110)
+            self.edits[key] = edit
+            lay.addWidget(edit, 1)
+        row = QtWidgets.QHBoxLayout()
+        row.addStretch(1)
+        if closing:
+            self.save_btn = QtWidgets.QPushButton("Save Session Log and Close Application")
+            self.discard_btn = QtWidgets.QPushButton("Discard Session Log and Close Application")
+            self.discard_btn.clicked.connect(lambda: self._finish("discard"))
+            row.addWidget(self.discard_btn)
+        else:
+            self.save_btn = QtWidgets.QPushButton("Save Session Log")
+            cancel_btn = QtWidgets.QPushButton("Cancel (keep recording)")
+            cancel_btn.clicked.connect(self.reject)
+            row.addWidget(cancel_btn)
+        self.save_btn.setDefault(True)
+        self.save_btn.clicked.connect(lambda: self._finish("save"))
+        row.addWidget(self.save_btn)
+        lay.addLayout(row)
+
+    def _finish(self, action):
+        self.action = action
+        self.accept()
+
+    def reject(self):                                   # window close button / Escape: cancel
+        self.action = None
+        super().reject()
+
+    def notes(self):
+        return {key: self.edits[key].toPlainText().strip() for key, _, _ in self.FIELDS}
 
 
 class ExperimentSessionMirror(QtWidgets.QGroupBox):
@@ -3529,10 +3573,10 @@ class ExperimentSessionMirror(QtWidgets.QGroupBox):
         self.gui = gui
         outer = QtWidgets.QVBoxLayout(self)
         row = QtWidgets.QHBoxLayout()
-        self.start_log_btn = QtWidgets.QPushButton("Start Session Log")
+        self.start_log_btn = QtWidgets.QPushButton("Start Session Recording")
         self.start_log_btn.clicked.connect(gui.start_session_log)
         row.addWidget(self.start_log_btn)
-        self.stop_log_btn = QtWidgets.QPushButton("Stop Session Log")
+        self.stop_log_btn = QtWidgets.QPushButton("Stop Session Recording")
         self.stop_log_btn.clicked.connect(gui.stop_session_log)
         row.addWidget(self.stop_log_btn)
         row.addStretch(1)
@@ -3570,7 +3614,7 @@ class ExperimentReplayMirror(QtWidgets.QGroupBox):
         outer = QtWidgets.QVBoxLayout(self)
 
         first = QtWidgets.QHBoxLayout()
-        self.replay_load_btn = QtWidgets.QPushButton("Load event log...")
+        self.replay_load_btn = QtWidgets.QPushButton("Load Session Log...")
         self.replay_load_btn.clicked.connect(gui.load_replay_log)
         first.addWidget(self.replay_load_btn)
         self.replay_audio_btn = QtWidgets.QPushButton("Audio folder...")
@@ -3614,13 +3658,13 @@ class ExperimentReplayMirror(QtWidgets.QGroupBox):
         self.replay_reset = QtWidgets.QCheckBox("Allow model reset / LoRA merge")
         self.replay_reset.toggled.connect(gui.replay_reset.setChecked)
         options.addWidget(self.replay_reset)
-        self.replay_go = QtWidgets.QPushButton("Start replay")
+        self.replay_go = QtWidgets.QPushButton("Start Session Replay")
         self.replay_go.clicked.connect(gui.start_replay)
         options.addWidget(self.replay_go)
-        self.replay_pause_btn = QtWidgets.QPushButton("Pause replay")
+        self.replay_pause_btn = QtWidgets.QPushButton("Pause Session Replay")
         self.replay_pause_btn.clicked.connect(gui.toggle_replay_pause)
         options.addWidget(self.replay_pause_btn)
-        self.replay_stop_btn = QtWidgets.QPushButton("Stop replay")
+        self.replay_stop_btn = QtWidgets.QPushButton("Stop Session Replay")
         self.replay_stop_btn.clicked.connect(lambda: gui._finish_replay("user_stopped"))
         options.addWidget(self.replay_stop_btn)
         outer.addLayout(options)
@@ -3645,6 +3689,31 @@ class ExperimentReplayMirror(QtWidgets.QGroupBox):
                      "replay_stop_btn", "replay_progress", "replay_status",
                      "replay_bookmark_label"):
             _copy_aux_widget(getattr(gui, name), getattr(self, name))
+
+
+class SessionPanelMirror(QtWidgets.QGroupBox):
+    """Common-tab copy of the single session group: recording controls and replay controls together."""
+    def __init__(self, gui):
+        super().__init__("Session recording and replay")
+        self.gui = gui
+        lay = QtWidgets.QVBoxLayout(self)
+        self.parts = (ExperimentSessionMirror(gui), ExperimentReplayMirror(gui))
+        for k, part in enumerate(self.parts):
+            part.setTitle("")                             # the two parts share this one group box
+            part.setStyleSheet("QGroupBox { border: none; margin: 0px; padding: 0px; }")
+            if k:
+                line = QtWidgets.QFrame()
+                line.setFrameShape(QtWidgets.QFrame.HLine)
+                line.setFrameShadow(QtWidgets.QFrame.Sunken)
+                lay.addWidget(line)
+            lay.addWidget(part)
+            for name, widget in vars(part).items():       # expose the part's widgets under their usual names
+                if isinstance(widget, QtWidgets.QWidget) and not hasattr(self, name):
+                    setattr(self, name, widget)
+
+    def sync_from_primary(self):
+        for part in self.parts:
+            part.sync_from_primary()
 
 
 class MicDeviceMirror(QtWidgets.QGroupBox):
@@ -4066,7 +4135,7 @@ class LiveGUI(QtWidgets.QWidget):
 
     def _sync_aux_panels(self):
         """Refresh mirrors of stateful composite panels (progress, buttons, notes)."""
-        for uid in ("session.panel", "replay.panel", "data.mic_device_panel", "data.mic_record_panel",
+        for uid in ("session.panel", "data.mic_device_panel", "data.mic_record_panel",
                     "inference.export_panel"):
             e = self.elements.get(uid)
             if e is not None and e.mirror is not None:
@@ -4346,15 +4415,15 @@ class LiveGUI(QtWidgets.QWidget):
         }
 
     def build_logging_toolbar(self, root):
-        box = QtWidgets.QGroupBox("Experiment session logging and bookmarks")
+        box = QtWidgets.QGroupBox("Session recording and replay")
         outer = QtWidgets.QVBoxLayout(box)
         row = QtWidgets.QHBoxLayout()
-        self.start_log_btn = QtWidgets.QPushButton("Start Session Log")
-        self.start_log_btn.setToolTip("Logging is OFF at startup. Starts a new session in its own folder.")
+        self.start_log_btn = QtWidgets.QPushButton("Start Session Recording")
+        self.start_log_btn.setToolTip("Starts a new session recording in its own folder (recording starts automatically when the application opens).")
         self.start_log_btn.clicked.connect(self.start_session_log)
         row.addWidget(self.start_log_btn)
-        self.stop_log_btn = QtWidgets.QPushButton("Stop Session Log")
-        self.stop_log_btn.setToolTip("Asks for optional free-text notes, then saves and closes the session log")
+        self.stop_log_btn = QtWidgets.QPushButton("Stop Session Recording")
+        self.stop_log_btn.setToolTip("Asks for optional notes (session, audio, free), then saves and closes the session log")
         self.stop_log_btn.setEnabled(False)
         self.stop_log_btn.clicked.connect(self.stop_session_log)
         row.addWidget(self.stop_log_btn)
@@ -4374,13 +4443,18 @@ class LiveGUI(QtWidgets.QWidget):
         self.logging_status.setMinimumWidth(0)
         self.logging_status.setSizePolicy(QtWidgets.QSizePolicy.Ignored, QtWidgets.QSizePolicy.Preferred)
         outer.addWidget(self.logging_status)
+        separator = QtWidgets.QFrame()
+        separator.setFrameShape(QtWidgets.QFrame.HLine)
+        separator.setFrameShadow(QtWidgets.QFrame.Sunken)
+        outer.addWidget(separator)
+        self.build_replay_toolbar(outer)                  # replay controls live in the same group box
         self._register_common_toolbar(
-            box, outer, "session", "session.panel", "Experiment session and bookmarks",
-            lambda: ExperimentSessionMirror(self))
+            box, outer, "session", "session.panel", "Session recording and replay",
+            lambda: SessionPanelMirror(self))
         root.addWidget(box)
 
     def start_logging_on_launch(self):
-        """Optional explicit startup recording for automated experiments (not default)."""
+        """Start the session recording automatically when the application opens."""
         self._logging_start_trigger = "application_started"
         try:
             self.start_session_log()
@@ -4407,6 +4481,21 @@ class LiveGUI(QtWidgets.QWidget):
             QtWidgets.QMessageBox.warning(self, "Could not start logger", str(exc))
         self._update_logging_status()
 
+    def _write_session_notes(self, session_dir, notes):
+        """Save the three note fields as session_notes.txt in the session folder (only if any text was entered)."""
+        if not any(notes.values()):
+            return
+        titles = {key: title for key, title, _ in SessionNotesDialog.FIELDS}
+        try:
+            with open(os.path.join(session_dir, "session_notes.txt"), "w", encoding="utf-8") as f:
+                f.write(f"Notes for session {os.path.basename(session_dir)}\n")
+                for key in ("session", "audio", "free"):
+                    f.write(f"\n=== {titles[key]} ===\n{notes[key] or '(no entry)'}\n")
+            self.experiment_logger.event("session.notes_saved", "user", {
+                "filename": "session_notes.txt", "characters": {k: len(v) for k, v in notes.items()}})
+        except OSError as exc:
+            QtWidgets.QMessageBox.warning(self, "Could not save the notes", str(exc))
+
     def stop_session_log(self, *_):
         lg = self.experiment_logger
         if not lg.enabled:
@@ -4414,18 +4503,11 @@ class LiveGUI(QtWidgets.QWidget):
         self._flush_all_changes()
         session_dir = lg.session_dir
         dlg = SessionNotesDialog(self, os.path.basename(session_dir))
-        if dlg.exec_() != QtWidgets.QDialog.Accepted:
-            self._update_logging_status()                 # cancelled: the session keeps running
+        dlg.exec_()
+        if dlg.action != "save":
+            self._update_logging_status()                 # cancelled: the session keeps recording
             return
-        notes = dlg.text()
-        if notes:
-            try:
-                with open(os.path.join(session_dir, "session_notes.txt"), "w", encoding="utf-8") as f:
-                    f.write(notes + "\n")
-                lg.event("session.notes_saved", "user", {"filename": "session_notes.txt",
-                                                         "characters": len(notes)})
-            except OSError as exc:
-                QtWidgets.QMessageBox.warning(self, "Could not save the notes", str(exc))
+        self._write_session_notes(session_dir, dlg.notes())
         lg.metric(self.trainer.logging_metrics(), force=True)
         lg.stop("user_disabled")
         self._update_logging_status()
@@ -4458,11 +4540,9 @@ class LiveGUI(QtWidgets.QWidget):
             QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(os.path.abspath(path)))
 
     # ---------------------------------------------------------------- experiment replay
-    def build_replay_toolbar(self, root):
-        box = QtWidgets.QGroupBox("Replay a recorded experiment (actions + live listening)")
-        outer = QtWidgets.QVBoxLayout(box)
+    def build_replay_toolbar(self, outer):
         first = QtWidgets.QHBoxLayout()
-        self.replay_load_btn = QtWidgets.QPushButton("Load event log...")
+        self.replay_load_btn = QtWidgets.QPushButton("Load Session Log...")
         self.replay_load_btn.clicked.connect(self.load_replay_log)
         first.addWidget(self.replay_load_btn)
         self.replay_audio_btn = QtWidgets.QPushButton("Audio folder...")
@@ -4509,15 +4589,15 @@ class LiveGUI(QtWidgets.QWidget):
         self.replay_reset.setChecked(False)
         self.replay_reset.setToolTip("Potentially destructive actions; disabled by default. Load starting weights manually first.")
         options.addWidget(self.replay_reset)
-        self.replay_go = QtWidgets.QPushButton("Start replay")
+        self.replay_go = QtWidgets.QPushButton("Start Session Replay")
         self.replay_go.clicked.connect(self.start_replay)
         self.replay_go.setEnabled(False)
         options.addWidget(self.replay_go)
-        self.replay_pause_btn = QtWidgets.QPushButton("Pause replay")
+        self.replay_pause_btn = QtWidgets.QPushButton("Pause Session Replay")
         self.replay_pause_btn.setEnabled(False)
         self.replay_pause_btn.clicked.connect(self.toggle_replay_pause)
         options.addWidget(self.replay_pause_btn)
-        self.replay_stop_btn = QtWidgets.QPushButton("Stop replay")
+        self.replay_stop_btn = QtWidgets.QPushButton("Stop Session Replay")
         self.replay_stop_btn.setEnabled(False)
         self.replay_stop_btn.clicked.connect(lambda: self._finish_replay("user_stopped"))
         options.addWidget(self.replay_stop_btn)
@@ -4538,10 +4618,6 @@ class LiveGUI(QtWidgets.QWidget):
         self.replay_bookmark_label = QtWidgets.QLabel("Recorded bookmark: none yet")
         self.replay_bookmark_label.setWordWrap(True)
         outer.addWidget(self.replay_bookmark_label)
-        self._register_common_toolbar(
-            box, outer, "replay", "replay.panel", "Experiment replay controls",
-            lambda: ExperimentReplayMirror(self))
-        root.addWidget(box)
 
     def load_replay_log(self):
         if self._replay_running:
@@ -4549,7 +4625,7 @@ class LiveGUI(QtWidgets.QWidget):
         default = (self.experiment_logger.session_dir or
                    os.path.join(save_path, "sessions"))
         path, _ = QtWidgets.QFileDialog.getOpenFileName(
-            self, "Select experiment events.jsonl", default, "JSON Lines (*.jsonl)")
+            self, "Select the session log (events.jsonl)", default, "JSON Lines (*.jsonl)")
         if not path:
             return
         try:
@@ -4569,7 +4645,7 @@ class LiveGUI(QtWidgets.QWidget):
         self.replay_progress.setValue(0)
         self.replay_status.setText(
             f"Loaded {len(replay.events)} replayable events, {len(replay.bookmarks)} bookmarks, "
-            f"{duration:.1f} s. Select a time range and press Start replay. "
+            f"{duration:.1f} s. Select a time range and press Start Session Replay. "
             "Original audio must be available; original model weights are NOT in this log. " +
             ("WARNING: this older log lacks an initial snapshot." if replay.initial_state is None else ""))
 
@@ -4920,7 +4996,7 @@ class LiveGUI(QtWidgets.QWidget):
         self.replay_load_btn.setEnabled(False)
         self.replay_audio_btn.setEnabled(False)
         self.replay_pause_btn.setEnabled(True)
-        self.replay_pause_btn.setText("Pause replay")
+        self.replay_pause_btn.setText("Pause Session Replay")
         self.replay_stop_btn.setEnabled(True)
         for widget in (self.replay_speed, self.replay_audio_mode, self.replay_train, self.replay_reset,
                        self.replay_from, self.replay_to):
@@ -4983,7 +5059,7 @@ class LiveGUI(QtWidgets.QWidget):
                 self._replay_pause_wall = time.monotonic()
                 self.engine.stop()
                 self.on_pause(True)
-                self.replay_pause_btn.setText("Resume replay")
+                self.replay_pause_btn.setText("Resume Session Replay")
                 self.replay_status.setText("Replay paused. Audio restarts its selected passage on resume.")
             else:
                 pause_duration = time.monotonic() - self._replay_pause_wall
@@ -4993,7 +5069,7 @@ class LiveGUI(QtWidgets.QWidget):
                     self.on_pause(self._replay_training_paused)
                 if self.replay_audio_mode.currentIndex() == 1 or self._replay_playback_wanted:
                     self.engine.start()
-                self.replay_pause_btn.setText("Pause replay")
+                self.replay_pause_btn.setText("Pause Session Replay")
                 self.replay_timer.start()
 
     def _finish_replay(self, reason):
@@ -5010,7 +5086,7 @@ class LiveGUI(QtWidgets.QWidget):
         self.replay_load_btn.setEnabled(True)
         self.replay_audio_btn.setEnabled(True)
         self.replay_pause_btn.setEnabled(False)
-        self.replay_pause_btn.setText("Pause replay")
+        self.replay_pause_btn.setText("Pause Session Replay")
         self.replay_stop_btn.setEnabled(False)
         for widget in (self.replay_speed, self.replay_audio_mode, self.replay_train, self.replay_reset,
                        self.replay_from, self.replay_to):
@@ -5086,8 +5162,7 @@ class LiveGUI(QtWidgets.QWidget):
         # independent Common checkbox in the original panel, and neither
         # checkbox is copied to the Common tab.
         session_tab, session_root = self._scroll_tab()
-        self.build_logging_toolbar(session_root)
-        self.build_replay_toolbar(session_root)
+        self.build_logging_toolbar(session_root)          # recording and replay share one group box
         session_root.addStretch(1)
         for widget, title in ((common_tab, "Common"), (data_tab, "Data selection"),
                               (inference_tab, "Live inference"), (training_tab, "Live training"),
@@ -6449,7 +6524,7 @@ class LiveGUI(QtWidgets.QWidget):
         root.addWidget(plot_box, 1)
         note = QtWidgets.QLabel(
             "Experiment logging is controlled in the Session log tab; its recording panel can be shown "
-            "in Common by checking 'common' in that panel. Recording is OFF by default. "
+            "in Common by checking 'common' in that panel. Recording starts automatically when the application opens. "
             "When enabled, it writes events.jsonl and sparse metrics.jsonl to a new "
             "results/live_vae/sessions/... folder. Add bookmarks while listening; "
             "no audio or model weights are copied into the log.")
@@ -6727,6 +6802,20 @@ class LiveGUI(QtWidgets.QWidget):
             f"(device {self.engine.device_underflows})   {self.trainer.status_msg}")
 
     def closeEvent(self, event):
+        lg = self.experiment_logger
+        discard_dir = None
+        if lg.enabled:                                    # a session is being recorded: ask what to do with it
+            self._flush_all_changes()
+            session_dir = lg.session_dir
+            dlg = SessionNotesDialog(self, os.path.basename(session_dir), closing=True)
+            dlg.exec_()
+            if dlg.action is None:                        # dialog dismissed: keep the application open
+                event.ignore()
+                return
+            if dlg.action == "save":
+                self._write_session_notes(session_dir, dlg.notes())
+            else:
+                discard_dir = session_dir
         if self._replay_running:
             self._finish_replay("window_closed")
         self._flush_all_changes()
@@ -6736,6 +6825,8 @@ class LiveGUI(QtWidgets.QWidget):
         self.mic.discard()
         self.experiment_logger.metric(self.trainer.logging_metrics(), force=True)
         self.experiment_logger.stop("window_closed")
+        if discard_dir:                                   # "Discard Session Log": remove the whole session folder
+            shutil.rmtree(discard_dir, ignore_errors=True)
         event.accept()
 
 
@@ -6781,7 +6872,7 @@ def main():
     wheel_guard = WheelGuard(app)
     app.installEventFilter(wheel_guard)
     gui = LiveGUI(trainer, engine, experiment_logger)
-    # Session recording is opt-in; user can start it from Session log or Common.
+    gui.start_logging_on_launch()      # session recording starts automatically when the application opens
     threading.Thread(target=trainer.run, daemon=True).start()
     threading.Thread(target=engine.producer, daemon=True).start()
     gui.show()
