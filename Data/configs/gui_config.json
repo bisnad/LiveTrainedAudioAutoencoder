@@ -37,7 +37,7 @@
     },
     "inference.device": {
       "common": false,
-      "value": "8: Speakers (Realtek(R) Audio)"
+      "value": "9: Headset (2- EarPods)"
     },
     "inference.file": {
       "common": true,
@@ -920,10 +920,7 @@
       "common": false
     },
     "session.panel": {
-      "common": true
-    },
-    "replay.panel": {
-      "common": true
+      "common": false
     }
   },
   "dataset": {

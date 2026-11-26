@@ -1,4 +1,4 @@
-# Live Trained Audio Autoencoder
+# ALTA - Audio Live-Trained Autoencoder
 ## Installation Guide
 
 > **Requirements:** 

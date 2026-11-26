@@ -1,0 +1,10 @@
+Notes for session 20261126_155121_12c30d
+
+=== Session Notes ===
+I'm just briefly run a default session using the provided config.json
+
+=== Audio Notes ===
+I didn't even turn on audio playback, so no information here.
+
+=== Free Notes ===
+This is just for debugging the revised session logging part of the tool.

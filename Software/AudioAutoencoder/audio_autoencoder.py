@@ -3496,6 +3496,32 @@ def _copy_aux_widget(source, destination, *, preserve_active_edit=False):
         destination.blockSignals(previous)
 
 
+class SessionNotesDialog(QtWidgets.QDialog):
+    """Free-text notes written by the user when a session log is stopped."""
+    def __init__(self, parent, session_name):
+        super().__init__(parent)
+        self.setWindowTitle("Session notes")
+        self.setMinimumSize(560, 360)
+        lay = QtWidgets.QVBoxLayout(self)
+        hint = QtWidgets.QLabel(
+            f"Notes for session {session_name}.")
+        hint.setWordWrap(True)
+        lay.addWidget(hint)
+        self.edit = QtWidgets.QPlainTextEdit()
+        self.edit.setPlaceholderText("Write your notes about this session here (can stay empty)")
+        lay.addWidget(self.edit, 1)
+        buttons = QtWidgets.QDialogButtonBox()
+        save = buttons.addButton("Save notes and stop log", QtWidgets.QDialogButtonBox.AcceptRole)
+        save.setDefault(True)
+        buttons.addButton("Cancel (keep logging)", QtWidgets.QDialogButtonBox.RejectRole)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        lay.addWidget(buttons)
+
+    def text(self):
+        return self.edit.toPlainText().strip()
+
+
 class ExperimentSessionMirror(QtWidgets.QGroupBox):
     """Independent Common-tab controls driving the one original session logger."""
     def __init__(self, gui):
@@ -3503,14 +3529,13 @@ class ExperimentSessionMirror(QtWidgets.QGroupBox):
         self.gui = gui
         outer = QtWidgets.QVBoxLayout(self)
         row = QtWidgets.QHBoxLayout()
-        self.record_toggle = QtWidgets.QCheckBox("Record session")
-        self.record_toggle.toggled.connect(gui.record_toggle.setChecked)
-        row.addWidget(self.record_toggle)
-        self.bookmark_note = QtWidgets.QLineEdit()
-        self.bookmark_note.setPlaceholderText("Optional note about what you hear / are testing")
-        self.bookmark_note.textEdited.connect(gui.bookmark_note.setText)
-        self.bookmark_note.returnPressed.connect(gui.add_bookmark)
-        row.addWidget(self.bookmark_note, 1)
+        self.start_log_btn = QtWidgets.QPushButton("Start Session Log")
+        self.start_log_btn.clicked.connect(gui.start_session_log)
+        row.addWidget(self.start_log_btn)
+        self.stop_log_btn = QtWidgets.QPushButton("Stop Session Log")
+        self.stop_log_btn.clicked.connect(gui.stop_session_log)
+        row.addWidget(self.stop_log_btn)
+        row.addStretch(1)
         self.bookmark_btn = QtWidgets.QPushButton("Bookmark")
         self.bookmark_btn.clicked.connect(gui.add_bookmark)
         row.addWidget(self.bookmark_btn)
@@ -3527,10 +3552,9 @@ class ExperimentSessionMirror(QtWidgets.QGroupBox):
 
     def sync_from_primary(self):
         gui = self.gui
-        for name in ("record_toggle", "bookmark_note",
+        for name in ("start_log_btn", "stop_log_btn",
                      "bookmark_btn", "folder_btn", "logging_status"):
-            _copy_aux_widget(getattr(gui, name), getattr(self, name),
-                             preserve_active_edit=(name == "bookmark_note"))
+            _copy_aux_widget(getattr(gui, name), getattr(self, name))
 
 
 class ExperimentReplayMirror(QtWidgets.QGroupBox):
@@ -4325,16 +4349,18 @@ class LiveGUI(QtWidgets.QWidget):
         box = QtWidgets.QGroupBox("Experiment session logging and bookmarks")
         outer = QtWidgets.QVBoxLayout(box)
         row = QtWidgets.QHBoxLayout()
-        self.record_toggle = QtWidgets.QCheckBox("Record session")
-        self.record_toggle.setToolTip("Recording is OFF at startup. Check to start a session; uncheck to stop it.")
-        self.record_toggle.toggled.connect(self._toggle_recording)
-        row.addWidget(self.record_toggle)
-        self.bookmark_note = QtWidgets.QLineEdit()
-        self.bookmark_note.setPlaceholderText("Optional note about what you hear / are testing")
-        self.bookmark_note.setToolTip("Saved with timestamp, training step, playback source and current model settings")
-        self.bookmark_note.returnPressed.connect(self.add_bookmark)
-        row.addWidget(self.bookmark_note, 1)
+        self.start_log_btn = QtWidgets.QPushButton("Start Session Log")
+        self.start_log_btn.setToolTip("Logging is OFF at startup. Starts a new session in its own folder.")
+        self.start_log_btn.clicked.connect(self.start_session_log)
+        row.addWidget(self.start_log_btn)
+        self.stop_log_btn = QtWidgets.QPushButton("Stop Session Log")
+        self.stop_log_btn.setToolTip("Asks for optional free-text notes, then saves and closes the session log")
+        self.stop_log_btn.setEnabled(False)
+        self.stop_log_btn.clicked.connect(self.stop_session_log)
+        row.addWidget(self.stop_log_btn)
+        row.addStretch(1)
         self.bookmark_btn = QtWidgets.QPushButton("Bookmark")
+        self.bookmark_btn.setToolTip("Saved with timestamp, training step, playback source and current model settings")
         self.bookmark_btn.setEnabled(False)
         self.bookmark_btn.clicked.connect(self.add_bookmark)
         row.addWidget(self.bookmark_btn)
@@ -4357,34 +4383,51 @@ class LiveGUI(QtWidgets.QWidget):
         """Optional explicit startup recording for automated experiments (not default)."""
         self._logging_start_trigger = "application_started"
         try:
-            self.record_toggle.setChecked(True)
+            self.start_session_log()
         finally:
             self._logging_start_trigger = None
 
-    def _toggle_recording(self, on):
-        if on:
-            try:
-                self._reset_control_shadows()
-                trigger = self._logging_start_trigger or "user_enabled"
-                folder = self.experiment_logger.start(self._logging_initial_state(), trigger=trigger)
-                if self.engine.stream is not None:
-                    self.experiment_logger.event("playback.already_running", "audio", {
-                        "source_index": int(inf_settings.file_index),
-                        "source_name": MIC_SOURCE_LABEL if inf_settings.use_mic else
-                                       store.src_names[inf_settings.file_index]
-                                       if 0 <= inf_settings.file_index < len(store.src_names) else None})
-                self.experiment_logger.metric(self.trainer.logging_metrics(), force=True)
-                self.logging_status.setToolTip(folder)
-            except Exception as exc:
-                traceback.print_exc()
-                self.record_toggle.blockSignals(True)
-                self.record_toggle.setChecked(False)
-                self.record_toggle.blockSignals(False)
-                QtWidgets.QMessageBox.warning(self, "Could not start logger", str(exc))
-        else:
-            self._flush_all_changes()
+    def start_session_log(self, *_):
+        if self.experiment_logger.enabled:
+            return
+        try:
+            self._reset_control_shadows()
+            trigger = self._logging_start_trigger or "user_enabled"
+            folder = self.experiment_logger.start(self._logging_initial_state(), trigger=trigger)
+            if self.engine.stream is not None:
+                self.experiment_logger.event("playback.already_running", "audio", {
+                    "source_index": int(inf_settings.file_index),
+                    "source_name": MIC_SOURCE_LABEL if inf_settings.use_mic else
+                                   store.src_names[inf_settings.file_index]
+                                   if 0 <= inf_settings.file_index < len(store.src_names) else None})
             self.experiment_logger.metric(self.trainer.logging_metrics(), force=True)
-            self.experiment_logger.stop("user_disabled")
+            self.logging_status.setToolTip(folder)
+        except Exception as exc:
+            traceback.print_exc()
+            QtWidgets.QMessageBox.warning(self, "Could not start logger", str(exc))
+        self._update_logging_status()
+
+    def stop_session_log(self, *_):
+        lg = self.experiment_logger
+        if not lg.enabled:
+            return
+        self._flush_all_changes()
+        session_dir = lg.session_dir
+        dlg = SessionNotesDialog(self, os.path.basename(session_dir))
+        if dlg.exec_() != QtWidgets.QDialog.Accepted:
+            self._update_logging_status()                 # cancelled: the session keeps running
+            return
+        notes = dlg.text()
+        if notes:
+            try:
+                with open(os.path.join(session_dir, "session_notes.txt"), "w", encoding="utf-8") as f:
+                    f.write(notes + "\n")
+                lg.event("session.notes_saved", "user", {"filename": "session_notes.txt",
+                                                         "characters": len(notes)})
+            except OSError as exc:
+                QtWidgets.QMessageBox.warning(self, "Could not save the notes", str(exc))
+        lg.metric(self.trainer.logging_metrics(), force=True)
+        lg.stop("user_disabled")
         self._update_logging_status()
 
     def _update_logging_status(self):
@@ -4392,6 +4435,8 @@ class LiveGUI(QtWidgets.QWidget):
         if not hasattr(self, "logging_status"):
             return
         self.bookmark_btn.setEnabled(lg.enabled)
+        self.start_log_btn.setEnabled(not lg.enabled)
+        self.stop_log_btn.setEnabled(lg.enabled)
         self.folder_btn.setEnabled(bool(lg.session_dir))
         if lg.writer_error:
             self.logging_status.setText(lg.writer_error)
@@ -5003,7 +5048,6 @@ class LiveGUI(QtWidgets.QWidget):
             src_name = store.src_names[idx] if 0 <= idx < len(store.src_names) else None
         data = {
             "label": "Bookmark",                  # entries are no longer distinguished by type
-            "note": self.bookmark_note.text().strip(),
             "source_id": f"source_{idx}" if src_name is not None else None,
             "source_name": src_name,
             "playback_running": self.engine.stream is not None,
@@ -5025,7 +5069,6 @@ class LiveGUI(QtWidgets.QWidget):
         }
         lg.event("bookmark.added", "observer", data)
         lg.metric(self.trainer.logging_metrics(), force=True)
-        self.bookmark_note.clear()
         self._update_logging_status()
 
     # ---------------------------------------------------------------- layout

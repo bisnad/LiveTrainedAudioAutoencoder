@@ -46,8 +46,7 @@
     "Pitch tracking (autocorrelation)": false,
     "Graph settings": true,
     "Weighted loss contributions (rec loss scale x weight x loss; KL = beta x KL)": true,
-    "Experiment session logging and bookmarks": true,
-    "Replay a recorded experiment (actions + live listening)": true
+    "Session recording and replay": true
   },
   "items": {
     "Data selection": {
@@ -322,15 +321,13 @@
       }
     },
     "Session log": {
-      "Experiment session logging and bookmarks": {
-        "Record session": true,
-        "Optional note about what you hear / are testing": true,
+      "Session recording and replay": {
+        "Start Session Recording": true,
+        "Stop Session Recording": true,
         "Bookmark": true,
         "Open log folder": true,
-        "Logging OFF. No experiment actions are being recorded.": false
-      },
-      "Replay a recorded experiment (actions + live listening)": {
-        "Load event log...": true,
+        "Logging OFF. No experiment actions are being recorded.": false,
+        "Load Session Log...": true,
         "Audio folder...": true,
         "No replay log loaded": true,
         "From": false,
@@ -339,9 +336,9 @@
         "Follow recorded play/stop": false,
         "Train while replaying": false,
         "Allow model reset / LoRA merge": false,
-        "Start replay": true,
-        "Pause replay": true,
-        "Stop replay": true,
+        "Start Session Replay": true,
+        "Pause Session Replay": true,
+        "Stop Session Replay": true,
         "Event replay uses the CURRENT model weights (or a checkpoint you load...": false,
         "Recorded bookmark: none yet": false
       }
@@ -495,7 +492,6 @@
     "log.show_total": true,
     "log.log_y": true,
     "log.plot": true,
-    "session.panel": true,
-    "replay.panel": true
+    "session.panel": true
   }
 }
